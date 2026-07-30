@@ -1,0 +1,288 @@
+import { defineSchema, defineTable } from "convex/server";
+import { v } from "convex/values";
+
+/**
+ * Shared validators — defined once here, imported by every function that reads
+ * or writes these shapes, so the table and the mutation can never drift.
+ */
+
+/** Organization role. Two managers (`owner`, `admin`), one worker (`member`). */
+export const organizationRoles = v.union(
+  v.literal("owner"),
+  v.literal("admin"),
+  v.literal("member"),
+);
+
+/**
+ * Row visibility inside an organization.
+ *
+ * - `full`    — sees every project in the organization, including future ones.
+ * - `limited` — sees only the projects listed for them in `projectMembers`.
+ */
+export const memberAccessLevels = v.union(
+  v.literal("full"),
+  v.literal("limited"),
+);
+
+/** Invite lifetime presets. Mapped to a concrete `expiresAt` server-side. */
+export const inviteExpiryPresets = v.union(
+  v.literal("6h"),
+  v.literal("24h"),
+  v.literal("48h"),
+  v.literal("7d"),
+  v.literal("30d"),
+);
+
+/**
+ * Task status palette. A fixed set of color keys, never a raw CSS color — the
+ * client maps each key to Tailwind classes in `src/lib/task-status-colors.ts`,
+ * so both themes stay correct and no component hardcodes a color.
+ */
+export const taskStatusColors = v.union(
+  v.literal("gray"),
+  v.literal("blue"),
+  v.literal("indigo"),
+  v.literal("violet"),
+  v.literal("amber"),
+  v.literal("orange"),
+  v.literal("red"),
+  v.literal("green"),
+  v.literal("teal"),
+);
+
+/**
+ * What a status *means*, independent of its name.
+ *
+ * Every project is seeded with exactly one `todo`, one `in_progress` and one
+ * `done` status. Those three are the core statuses: they can be renamed,
+ * recolored and reordered, but never deleted, so "done" semantics (and later
+ * completion counts) always have a column to point at. Everything a user adds
+ * is `custom`.
+ */
+export const taskStatusKinds = v.union(
+  v.literal("todo"),
+  v.literal("in_progress"),
+  v.literal("done"),
+  v.literal("custom"),
+);
+
+/**
+ * What a stored file is attached to. One `files` table serves three surfaces of
+ * a task and the discriminator keeps them apart:
+ *
+ * - `attachment` — the "Přílohy" list on the task detail page.
+ * - `content`    — an image or file dropped inside the description document.
+ * - `comment`    — uploaded in the comment composer; carries `commentId` once
+ *                  the comment it belongs to has been created.
+ */
+export const fileContexts = v.union(
+  v.literal("attachment"),
+  v.literal("content"),
+  v.literal("comment"),
+);
+
+/** Audited actions. The client never supplies one of these directly. */
+export const activityTypes = v.union(
+  v.literal("organization_created"),
+  v.literal("organization_renamed"),
+  v.literal("invite_created"),
+  v.literal("invite_accepted"),
+  v.literal("invite_revoked"),
+  v.literal("member_role_changed"),
+  v.literal("member_removed"),
+  v.literal("project_created"),
+  v.literal("project_renamed"),
+  v.literal("project_archived"),
+  v.literal("project_restored"),
+  v.literal("task_created"),
+  v.literal("task_status_changed"),
+  v.literal("task_deleted"),
+);
+
+/**
+ * App-level tables.
+ *
+ * Better Auth owns its own tables inside the `betterAuth` component; the `users`
+ * table below is an app-owned mirror kept in sync by the triggers in
+ * `convex/auth.ts`. Everything downstream (memberships, projects, tasks,
+ * comments) references `Id<"users">`, never the Better Auth id.
+ */
+export default defineSchema({
+  users: defineTable({
+    // Better Auth user id (`_id` of the component's user document).
+    authId: v.string(),
+    name: v.string(),
+    email: v.string(),
+    image: v.optional(v.string()),
+  })
+    .index("by_auth_id", ["authId"])
+    .index("by_email", ["email"]),
+
+  organizations: defineTable({
+    name: v.string(),
+    createdBy: v.id("users"),
+  }),
+
+  organizationMembers: defineTable({
+    organizationId: v.id("organizations"),
+    userId: v.id("users"),
+    role: organizationRoles,
+    access: memberAccessLevels,
+  })
+    .index("by_org", ["organizationId"])
+    .index("by_user", ["userId"])
+    .index("by_org_user", ["organizationId", "userId"]),
+
+  /**
+   * A project's icon is either an uploaded image (`iconStorageId`) or an emoji
+   * (`emoji`) — never both. Setting one clears the other server-side, so the
+   * renderer never has to invent a precedence rule; with neither, the project
+   * falls back to a colored tile with its first letter.
+   */
+  projects: defineTable({
+    organizationId: v.id("organizations"),
+    name: v.string(),
+    iconStorageId: v.optional(v.id("_storage")),
+    emoji: v.optional(v.string()),
+    createdBy: v.id("users"),
+    archived: v.optional(v.boolean()),
+  })
+    .index("by_org", ["organizationId"])
+    .index("by_icon_storage", ["iconStorageId"]),
+
+  /** An explicit project grant. Only `limited` members need one. */
+  projectMembers: defineTable({
+    projectId: v.id("projects"),
+    userId: v.id("users"),
+    organizationId: v.id("organizations"),
+  })
+    .index("by_project", ["projectId"])
+    .index("by_user", ["userId"])
+    .index("by_project_user", ["projectId", "userId"])
+    .index("by_org_user", ["organizationId", "userId"]),
+
+  /** `projectId` absent = organization-wide invite (grants `full` access). */
+  invites: defineTable({
+    organizationId: v.id("organizations"),
+    projectId: v.optional(v.id("projects")),
+    code: v.string(),
+    createdBy: v.id("users"),
+    expiresAt: v.number(),
+    revoked: v.optional(v.boolean()),
+    usedCount: v.number(),
+    acceptedBy: v.optional(v.id("users")),
+  })
+    .index("by_code", ["code"])
+    .index("by_org", ["organizationId"])
+    .index("by_org_project", ["organizationId", "projectId"])
+    .index("by_project", ["projectId"]),
+
+  /**
+   * The columns of a project's board. Seeded with three core statuses when the
+   * project is created; members may add, rename, recolor and reorder more.
+   * `order` is fractional-friendly but statuses are always renumbered in one
+   * pass on reorder — there are few of them.
+   */
+  taskStatuses: defineTable({
+    projectId: v.id("projects"),
+    organizationId: v.id("organizations"),
+    name: v.string(),
+    color: taskStatusColors,
+    order: v.number(),
+    kind: taskStatusKinds,
+  }).index("by_project", ["projectId"]),
+
+  /**
+   * `order` is the position inside the status column and is **fractional**: a
+   * dropped card takes the midpoint between its two new neighbours, so a drag
+   * writes one document. See `convex/lib/ordering.ts` for the renormalization
+   * that runs when the gap between neighbours gets too small.
+   */
+  tasks: defineTable({
+    projectId: v.id("projects"),
+    organizationId: v.id("organizations"),
+    title: v.string(),
+    statusId: v.id("taskStatuses"),
+    order: v.number(),
+    createdBy: v.id("users"),
+    assigneeId: v.optional(v.id("users")),
+    updatedAt: v.number(),
+  })
+    .index("by_project", ["projectId"])
+    .index("by_status", ["statusId"])
+    .index("by_project_assignee", ["projectId", "assigneeId"]),
+
+  /**
+   * The task body — one BlockNote document per task, stored as the serialized
+   * JSON the editor round-trips. Exactly one row per task, upserted by
+   * `taskContent.save`; a task with no row has an empty description.
+   *
+   * The JSON is opaque to the server on purpose: it validates that the string
+   * parses and stays under the size cap, and never interprets the blocks.
+   */
+  taskContent: defineTable({
+    taskId: v.id("tasks"),
+    projectId: v.id("projects"),
+    organizationId: v.id("organizations"),
+    content: v.string(),
+    updatedBy: v.id("users"),
+    updatedAt: v.number(),
+  }).index("by_task", ["taskId"]),
+
+  /**
+   * Blobs in Convex storage, always scoped to a task (and through it to a
+   * project and an organization) — there is no generic "give me this storage
+   * id" endpoint anywhere in the app.
+   *
+   * `context` says which surface the file belongs to; `commentId` is set when a
+   * `comment` file is claimed by the comment that was posted with it, which is
+   * also what stops the same upload being attached to two comments.
+   */
+  files: defineTable({
+    taskId: v.id("tasks"),
+    projectId: v.id("projects"),
+    organizationId: v.id("organizations"),
+    storageId: v.id("_storage"),
+    fileName: v.string(),
+    mimeType: v.string(),
+    size: v.number(),
+    context: fileContexts,
+    commentId: v.optional(v.id("comments")),
+    uploadedBy: v.id("users"),
+  })
+    .index("by_task", ["taskId"])
+    .index("by_task_context", ["taskId", "context"])
+    // Convex appends `_creationTime` to every index, so this one is also the
+    // oldest-first scan the orphan reaper (`convex/fileReaper.ts`) walks.
+    .index("by_context", ["context"])
+    .index("by_comment", ["commentId"])
+    .index("by_storage", ["storageId"]),
+
+  /**
+   * A chat-like stream under every task.
+   *
+   * `body` is a serialized array of segments — `{type:"text",text}` and
+   * `{type:"mention",userId,name}` — see `convex/lib/commentBody.ts`. Storing
+   * segments instead of markdown means a mention stays a real reference to a
+   * user id, so the notifications of a later phase can read them without
+   * re-parsing prose. The denormalized `name` is only display copy for the
+   * moment the comment was written.
+   */
+  comments: defineTable({
+    taskId: v.id("tasks"),
+    projectId: v.id("projects"),
+    organizationId: v.id("organizations"),
+    authorId: v.id("users"),
+    body: v.string(),
+    attachmentIds: v.optional(v.array(v.id("files"))),
+    edited: v.optional(v.boolean()),
+  }).index("by_task", ["taskId"]),
+
+  activityLogs: defineTable({
+    organizationId: v.id("organizations"),
+    actorId: v.id("users"),
+    type: activityTypes,
+    targetId: v.optional(v.string()),
+    meta: v.optional(v.any()),
+  }).index("by_org", ["organizationId"]),
+});

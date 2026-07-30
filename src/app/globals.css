@@ -1,26 +1,236 @@
 @import "tailwindcss";
+@import "tw-animate-css";
 
+/*
+ * BlockNote's shadcn UI package ships its menus as Tailwind classes, not as
+ * compiled CSS, so Tailwind has to see its bundle to emit them. Without this
+ * line the editor renders but every popover and toolbar is unstyled. Everything
+ * it needs — `bg-popover`, `border-input`, `--radius` — is a token defined
+ * below, which is why the editor inherits our theme for free.
+ */
+@source "../../node_modules/@blocknote/shadcn/dist/blocknote-shadcn.js";
+
+@custom-variant dark (&:is(.dark *));
+
+/*
+ * Design tokens — HSL channel triples, consumed through `@theme inline` below.
+ * Neutral grayscale surfaces + exactly one saturated accent (indigo).
+ * `--accent` is a neutral hover surface, never the brand color.
+ */
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --background: 0 0% 98%;
+  --foreground: 0 0% 9%;
+
+  --card: 0 0% 100%;
+  --card-foreground: 0 0% 9%;
+
+  --popover: 0 0% 100%;
+  --popover-foreground: 0 0% 9%;
+
+  --primary: 243 75% 59%;
+  --primary-foreground: 0 0% 100%;
+
+  --secondary: 0 0% 96%;
+  --secondary-foreground: 0 0% 9%;
+
+  --muted: 0 0% 96%;
+  --muted-foreground: 0 0% 45%;
+
+  --accent: 0 0% 94%;
+  --accent-foreground: 0 0% 9%;
+
+  --destructive: 0 72% 45%;
+  --destructive-foreground: 0 0% 100%;
+
+  --border: 0 0% 90%;
+  --input: 0 0% 87%;
+  --ring: 243 75% 59%;
+
+  --sidebar: 0 0% 100%;
+  --sidebar-foreground: 0 0% 9%;
+  --sidebar-primary: 243 75% 59%;
+  --sidebar-primary-foreground: 0 0% 100%;
+  --sidebar-accent: 0 0% 94%;
+  --sidebar-accent-foreground: 0 0% 9%;
+  --sidebar-border: 0 0% 90%;
+  --sidebar-ring: 243 75% 59%;
+
+  --chart-1: 243 75% 59%;
+  --chart-2: 0 0% 45%;
+  --chart-3: 0 0% 62%;
+  --chart-4: 0 0% 31%;
+  --chart-5: 0 0% 78%;
+
+  --radius: 0.625rem;
+}
+
+.dark {
+  --background: 0 0% 7%;
+  --foreground: 0 0% 96%;
+
+  --card: 0 0% 10%;
+  --card-foreground: 0 0% 96%;
+
+  --popover: 0 0% 12%;
+  --popover-foreground: 0 0% 96%;
+
+  --primary: 243 75% 66%;
+  --primary-foreground: 0 0% 100%;
+
+  --secondary: 0 0% 16%;
+  --secondary-foreground: 0 0% 96%;
+
+  --muted: 0 0% 16%;
+  --muted-foreground: 0 0% 64%;
+
+  --accent: 0 0% 19%;
+  --accent-foreground: 0 0% 96%;
+
+  --destructive: 0 72% 60%;
+  --destructive-foreground: 0 0% 100%;
+
+  --border: 0 0% 20%;
+  --input: 0 0% 24%;
+  --ring: 243 75% 66%;
+
+  --sidebar: 0 0% 9%;
+  --sidebar-foreground: 0 0% 96%;
+  --sidebar-primary: 243 75% 66%;
+  --sidebar-primary-foreground: 0 0% 100%;
+  --sidebar-accent: 0 0% 19%;
+  --sidebar-accent-foreground: 0 0% 96%;
+  --sidebar-border: 0 0% 20%;
+  --sidebar-ring: 243 75% 66%;
+
+  --chart-1: 243 75% 66%;
+  --chart-2: 0 0% 64%;
+  --chart-3: 0 0% 48%;
+  --chart-4: 0 0% 78%;
+  --chart-5: 0 0% 34%;
 }
 
 @theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
+  --font-heading: var(--font-geist-sans);
+
+  --color-background: hsl(var(--background));
+  --color-foreground: hsl(var(--foreground));
+  --color-card: hsl(var(--card));
+  --color-card-foreground: hsl(var(--card-foreground));
+  --color-popover: hsl(var(--popover));
+  --color-popover-foreground: hsl(var(--popover-foreground));
+  --color-primary: hsl(var(--primary));
+  --color-primary-foreground: hsl(var(--primary-foreground));
+  --color-secondary: hsl(var(--secondary));
+  --color-secondary-foreground: hsl(var(--secondary-foreground));
+  --color-muted: hsl(var(--muted));
+  --color-muted-foreground: hsl(var(--muted-foreground));
+  --color-accent: hsl(var(--accent));
+  --color-accent-foreground: hsl(var(--accent-foreground));
+  --color-destructive: hsl(var(--destructive));
+  --color-destructive-foreground: hsl(var(--destructive-foreground));
+  --color-border: hsl(var(--border));
+  --color-input: hsl(var(--input));
+  --color-ring: hsl(var(--ring));
+
+  --color-sidebar: hsl(var(--sidebar));
+  --color-sidebar-foreground: hsl(var(--sidebar-foreground));
+  --color-sidebar-primary: hsl(var(--sidebar-primary));
+  --color-sidebar-primary-foreground: hsl(var(--sidebar-primary-foreground));
+  --color-sidebar-accent: hsl(var(--sidebar-accent));
+  --color-sidebar-accent-foreground: hsl(var(--sidebar-accent-foreground));
+  --color-sidebar-border: hsl(var(--sidebar-border));
+  --color-sidebar-ring: hsl(var(--sidebar-ring));
+
+  --color-chart-1: hsl(var(--chart-1));
+  --color-chart-2: hsl(var(--chart-2));
+  --color-chart-3: hsl(var(--chart-3));
+  --color-chart-4: hsl(var(--chart-4));
+  --color-chart-5: hsl(var(--chart-5));
+
+  --radius-sm: calc(var(--radius) * 0.6);
+  --radius-md: calc(var(--radius) * 0.8);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) * 1.4);
+  --radius-2xl: calc(var(--radius) * 1.8);
+  --radius-3xl: calc(var(--radius) * 2.2);
+  --radius-4xl: calc(var(--radius) * 2.6);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+
+  body {
+    @apply bg-background text-foreground;
+  }
+
+  html {
+    @apply font-sans antialiased;
   }
 }
 
-body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+/*
+ * The task description editor.
+ *
+ * BlockNote paints the document itself from `--bn-colors-*`, which default to
+ * hardcoded greys that ignore our tokens. Repointing them at the tokens is what
+ * makes the editor correct in both themes — the `theme` prop only flips
+ * `data-color-scheme`, and everything else follows from here.
+ */
+.workeee-editor .bn-root {
+  --bn-font-family: var(--font-sans);
+  --bn-border-radius: var(--radius);
+  --bn-colors-editor-text: hsl(var(--foreground));
+  --bn-colors-editor-background: transparent;
+  --bn-colors-menu-text: hsl(var(--popover-foreground));
+  --bn-colors-menu-background: hsl(var(--popover));
+  --bn-colors-tooltip-text: hsl(var(--popover-foreground));
+  --bn-colors-tooltip-background: hsl(var(--popover));
+  --bn-colors-hovered-text: hsl(var(--accent-foreground));
+  --bn-colors-hovered-background: hsl(var(--accent));
+  --bn-colors-selected-text: hsl(var(--accent-foreground));
+  --bn-colors-selected-background: hsl(var(--accent));
+  --bn-colors-disabled-text: hsl(var(--muted-foreground));
+  --bn-colors-disabled-background: hsl(var(--muted));
+  --bn-colors-border: hsl(var(--border));
+  --bn-colors-side-menu: hsl(var(--muted-foreground));
+  --bn-colors-shadow: hsl(var(--border));
+}
+
+/*
+ * The document text must line up with the title above it. BlockNote reserves
+ * 54 px of inline padding for the block handles, so on desktop the editor is
+ * pulled back by the page gutter and the padding is trimmed to match; below
+ * `lg` there is no gutter to borrow, so the handles are dropped and the "/"
+ * menu carries the block commands.
+ */
+.workeee-editor .bn-editor {
+  padding-inline: 0;
+}
+
+.workeee-editor .bn-side-menu {
+  display: none;
+}
+
+@media (width >= 64rem) {
+  .workeee-editor {
+    margin-inline: -2rem;
+  }
+
+  .workeee-editor .bn-editor {
+    padding-inline: 2rem;
+  }
+
+  .workeee-editor .bn-side-menu {
+    display: flex;
+  }
+}
+
+/* The empty-document placeholder is muted copy, not editor text. */
+.workeee-editor .bn-inline-content:has(> .bn-placeholder)::before,
+.workeee-editor [data-placeholder]::before {
+  color: hsl(var(--muted-foreground));
 }

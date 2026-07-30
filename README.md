@@ -1,36 +1,85 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Workeee
 
-## Getting Started
+Workeee je česká týmová aplikace pro tok **organizace → projekty → úkoly**.
+Obsahuje kanban s vlastními stavy, blokový editor, přílohy, komentáře se
+zmínkami, správu rolí a jednorázové pozvánky pro celou organizaci nebo vybraný
+projekt.
 
-First, run the development server:
+Produkční aplikace: [workeee.vercel.app](https://workeee.vercel.app)
+
+## Stack
+
+- Next.js 16, React 19, TypeScript a Tailwind CSS 4
+- Convex pro databázi, serverové funkce a úložiště
+- Better Auth pro registraci, přihlášení a relace
+- Vitest a `convex-test` pro automatické testy
+
+## Lokální spuštění
+
+Požadován je Node.js `>=20.9 <25` a pnpm. Zkopírujte `.env.example` do
+`.env.local`, připojte vlastní vývojový Convex deployment a spusťte oba procesy:
 
 ```bash
-npm run dev
-# or
-yarn dev
-# or
+corepack enable
+pnpm install
+pnpm dev:convex
 pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Frontend poběží na `http://localhost:3000`. `pnpm dev:convex` běží souběžně
+v druhém terminálu a při prvním spuštění doplní adresy deploymentu.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## Proměnné prostředí
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+Next.js potřebuje:
 
-## Learn More
+| Proměnná | Význam |
+|---|---|
+| `CONVEX_DEPLOYMENT` | vývojový deployment pro Convex CLI |
+| `NEXT_PUBLIC_CONVEX_URL` | veřejné API Convex deploymentu |
+| `NEXT_PUBLIC_CONVEX_SITE_URL` | HTTP endpoint Convex deploymentu |
+| `NEXT_PUBLIC_SITE_URL` | přesný veřejný origin aplikace bez koncového `/` |
 
-To learn more about Next.js, take a look at the following resources:
+Convex deployment potřebuje vlastní serverové proměnné:
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+```bash
+pnpm exec convex env set BETTER_AUTH_SECRET
+pnpm exec convex env set SITE_URL http://localhost:3000
+```
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+`BETTER_AUTH_SECRET` musí být dlouhý náhodný klíč. `SITE_URL` a
+`NEXT_PUBLIC_SITE_URL` se musí shodovat se skutečným originem; jinak auth odmítne
+požadavek nebo pozvánky odkážou na špatnou adresu. Skutečné hodnoty a tajné
+klíče nepatří do Gitu.
 
-## Deploy on Vercel
+## Ověření změn
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+Stejné brány běží v GitHub Actions:
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+```bash
+pnpm audit --prod
+pnpm lint
+pnpm typecheck
+pnpm test
+pnpm exec convex dev --once
+pnpm build
+```
+
+Testy pokrývají přístupová práva, role, jednorázové pozvánky, úkoly, komentáře,
+přílohy, izolaci úložiště mezi tenanty a mazání organizace.
+
+## Nasazení
+
+Produkční frontend běží na Vercelu a backend na Convexu. Backend nasadíte přes
+`pnpm exec convex deploy`; frontend přes Vercel nebo propojení GitHub repozitáře
+s Vercel projektem. Produkční Convex deployment musí mít nastavené
+`BETTER_AUTH_SECRET` a `SITE_URL=https://workeee.vercel.app`; Vercel musí mít
+veřejné adresy produkčního Convex deploymentu a
+`NEXT_PUBLIC_SITE_URL=https://workeee.vercel.app`.
+
+## Struktura a pravidla
+
+Backend je v `convex/`, frontend v `src/` a CI v `.github/workflows/ci.yml`.
+Úplný kontrakt projektu — verze stacku, auth a přístupový model, schéma,
+designové tokeny a roadmapa — je v [`CLAUDE.md`](./CLAUDE.md). Při změně
+dokumentovaného faktu aktualizujte ve stejném commitu i tento soubor.
