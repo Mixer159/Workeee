@@ -48,7 +48,8 @@ Version pins that matter:
   The **shadcn** UI package was chosen over `@blocknote/mantine` because it draws
   its menus with our own tokens (`bg-popover`, `border-input`, `--radius`, the
   `.dark` variant) instead of pulling `@mantine/core` in as a second component
-  library. Its cost is one line in `globals.css` — see **The task body editor**.
+  library. Its cost is two lines in `globals.css`, and they are not
+  interchangeable — see **The task body editor**.
 
 ## Commands
 
@@ -522,9 +523,14 @@ is written into the address as `?ukol=<taskId>`.
 Order inside the panel: header (project name · save indicator · delete · close)
 → title → status + assignee selects → meta line → **description editor** →
 **Přílohy** → **Komentáře**. Each section owns its heading exactly once; the
-editor has no heading at all, because the body *is* the panel. The body padding
-is `lg:px-8` because that is the gutter `.workeee-editor` borrows back (see
-**The task body editor**).
+editor has no heading at all, because the body *is* the panel — and it is the
+one section with no `Separator` above it, for the same reason.
+
+The panel is laid out like a Notion page: the header is a **toolbar** and hugs
+the edge (`px-4 sm:px-6`), while the column under it is indented to
+`px-4 sm:px-14`. The two do not line up on purpose. That `3.5rem` is the gutter
+`.workeee-editor` borrows back so the block handles land in it instead of
+floating outside the panel (see **The task body editor**).
 
 ### Everything saves itself
 
@@ -592,20 +598,45 @@ Client rules that matter (`src/components/tasks/task-description-editor.tsx`):
   headers by the group string and duplicates crash the React key check. Keep the
   `Nadpisy` / `Podnadpisy` split that mirrors `en`'s `Headings` / `Subheadings`.
 
-`@blocknote/shadcn` renders its menus with Tailwind classes that live inside its
-own bundle, so `globals.css` carries
+`globals.css` carries **two** BlockNote lines and they do different jobs — one is
+not a substitute for the other:
 
 ```css
+@import "@blocknote/shadcn/style.css";
 @source "../../node_modules/@blocknote/shadcn/dist/blocknote-shadcn.js";
 ```
 
-Without that line the editor works but every popover is unstyled. The same file
-repoints BlockNote's `--bn-colors-*` at our tokens under `.workeee-editor`, which
-is what makes both themes correct; the `theme` prop only flips
-`data-color-scheme` and comes from `useTheme()`. BlockNote reserves 54 px of
-inline padding for the block handles, so on `lg` the editor is pulled back by the
-page gutter and the padding trimmed to `2rem`; below `lg` the handles are hidden
-and the "/" menu carries the block commands.
+- The **stylesheet** is the editor's layout: block geometry, list markers, the
+  heading scale, the inline placeholder, `outline: none` on the document. Drop
+  it and what is left is bare ProseMirror — the browser paints its own focus
+  ring around the whole body (recoloured indigo by `* { outline-ring/50 }`, so it
+  reads as two stray blue rules), the placeholder falls onto the line *below* the
+  caret because `.bn-block-content` is no longer `display: flex`, and "Nadpis 1"
+  applies but renders at body size. That last one is why the symptom people
+  report is **"the slash commands don't work"**: they do, invisibly.
+- The **`@source`** is for the menus only. The shadcn UI package ships them as
+  Tailwind classes inside its JS bundle rather than as compiled CSS, so Tailwind
+  has to scan that bundle to emit them.
+
+The same file repoints BlockNote's `--bn-colors-*` at our tokens under
+`.workeee-editor`, which is what makes both themes correct; the `theme` prop only
+flips `data-color-scheme` and comes from `useTheme()`.
+
+Geometry — Notion's gutter, and the reason the panel is indented:
+
+- BlockNote positions the block handles against `.bn-editor`'s own inline
+  padding. So the panel pads its column by `3.5rem`, the editor claims it back
+  with `margin-inline: -3.5rem` and re-applies it as `padding-inline`. The text
+  column then starts exactly where the task title does, and the handles sit in
+  the margin — inside the panel, clear of the text.
+- The breakpoint is **`sm`, not the app-wide `lg`**: what decides whether there
+  is room is the drawer's own width, and the drawer reaches its full
+  `max-w-2xl` at `sm`. Below it the panel is a phone-width sheet, so the handles
+  are dropped and the "/" menu carries the block commands alone.
+- Body text is `0.9375rem / 1.65` and headings are capped below the task title
+  (`text-2xl`) by overriding BlockNote's `--level`: `1.375rem` · `1.125rem` ·
+  `1rem`, then `0.9375rem` for 4–6. A heading is a divider inside a description,
+  not a competitor to the name of the task.
 
 ### Files
 
@@ -875,6 +906,13 @@ Day-one decisions:
 - **Phase 6 (done).** Deleting an organization: owner-only `organizations.remove`
   confirmed by name, the batched self-rescheduling `organizationPurge`, the
   delete card in the organization settings, and the cascade's tests.
+- **Phase 7 (done).** The description editor, made to look like the Notion it was
+  always modelled on: BlockNote's stylesheet is actually imported now, which
+  removed the stray focus rule around the body, put the placeholder back on the
+  caret's line and made the slash commands visibly do something. The panel gained
+  Notion's gutter (`sm:px-14`) so the block handles sit inside it, the header
+  became a toolbar at the edge, headings were scaled under the task title, and
+  the separator that boxed the body in is gone.
 - **Later.** List view, due dates, filters in the URL, notifications, activity
   timeline, audit log surface.
 
@@ -952,6 +990,21 @@ Day-one decisions:
   not as compiled CSS. Tailwind v4 ignores `node_modules` unless told, so the
   editor needs one `@source "…/blocknote-shadcn.js"` in `globals.css` — and in
   exchange it inherits the app's tokens and `.dark` variant with no theming glue.
+  **That `@source` is not the stylesheet.** The menus came out styled, which made
+  the missing `@import "@blocknote/shadcn/style.css"` look like it was covered;
+  it was not, and the editor spent a phase as unstyled ProseMirror. `grep -c
+  bn-block-outer` on the built CSS in `.next/static` is the one-second check —
+  zero means the stylesheet never shipped.
+- A missing stylesheet does not report itself as a missing stylesheet. Here it
+  arrived as three unrelated-sounding complaints — a stray blue rule above and
+  below the body, two buttons floating outside the panel, and "the slash commands
+  don't work" — and the third was the most misleading: the command *ran*, the
+  block really became a heading, and a heading with no CSS is a paragraph. When a
+  feature is reported dead, check what it renders as before checking whether it
+  fires.
+- The app-wide `lg:` breakpoint is about the sidebar. A panel inside a drawer has
+  its own width (`max-w-2xl` from `sm:`), so its internals key off `sm:` — using
+  `lg:` there means a 672 px panel laid out for a phone between `sm` and `lg`.
 - Relative time ("před 5 min") cannot read `Date.now()` during render
   (`react-hooks/purity`) and cannot tick from a `setState` in an effect
   (`react-hooks/set-state-in-effect`). `useNow()` is a module-level store with one

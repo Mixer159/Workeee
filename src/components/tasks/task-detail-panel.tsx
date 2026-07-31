@@ -156,7 +156,9 @@ export function TaskDetailPanel({
 
   return (
     <div className="flex h-full flex-col">
-      <header className="flex h-14 shrink-0 items-center gap-2 border-b px-4 lg:px-8">
+      {/* The header is a toolbar and hugs the panel edge; the column below it
+          is indented to Notion's gutter, so the two do not line up on purpose. */}
+      <header className="flex h-14 shrink-0 items-center gap-2 border-b px-4 sm:px-6">
         <span className="truncate text-sm text-muted-foreground">
           {task?.projectName}
         </span>
@@ -185,9 +187,10 @@ export function TaskDetailPanel({
         </div>
       </header>
 
-      {/* `lg:px-8` is the gutter `.workeee-editor` borrows back to line the
-          document up with the title — the same 2rem the page used to give it. */}
-      <div className="flex-1 overflow-y-auto px-4 py-6 lg:px-8">
+      {/* `sm:px-14` is the gutter `.workeee-editor` borrows back: the editor's
+          own padding then draws the text column, and the block handles land in
+          the 3.5rem to its left instead of floating outside the panel. */}
+      <div className="flex-1 overflow-y-auto px-4 py-6 sm:px-14">
         {task === undefined ? (
           <div className="flex flex-col gap-4">
             <Skeleton className="h-9 w-3/4" />
@@ -261,8 +264,9 @@ export function TaskDetailPanel({
               {formatDate(task.createdAt)}
             </p>
 
-            <Separator />
-
+            {/* No rule above the editor: the body is the panel's main surface,
+                not a section of it. The separators start where the sections
+                with their own headings do. */}
             {description === undefined ? (
               <Skeleton className="h-24 w-full" />
             ) : (

@@ -2,12 +2,22 @@
 @import "tw-animate-css";
 
 /*
- * BlockNote's shadcn UI package ships its menus as Tailwind classes, not as
- * compiled CSS, so Tailwind has to see its bundle to emit them. Without this
- * line the editor renders but every popover and toolbar is unstyled. Everything
- * it needs — `bg-popover`, `border-input`, `--radius` — is a token defined
- * below, which is why the editor inherits our theme for free.
+ * BlockNote needs **both** of the next two lines, and they do different jobs.
+ *
+ * The stylesheet is the editor's layout: block geometry, list markers, heading
+ * scale, the inline placeholder, `outline: none` on the document. Skipping it
+ * leaves a bare ProseMirror — the browser draws its own focus ring around the
+ * body, the placeholder drops onto the line below the caret, and "Nadpis 1"
+ * applies but looks exactly like a paragraph, which reads as "the slash
+ * commands do nothing".
+ *
+ * The `@source` is for the *menus*: the shadcn UI package ships them as
+ * Tailwind classes inside its JS bundle, not as compiled CSS, so Tailwind has
+ * to scan that bundle to emit them. Everything they ask for — `bg-popover`,
+ * `border-input`, `--radius` — is a token defined below, which is why the
+ * editor inherits our theme for free.
  */
+@import "@blocknote/shadcn/style.css";
 @source "../../node_modules/@blocknote/shadcn/dist/blocknote-shadcn.js";
 
 @custom-variant dark (&:is(.dark *));
@@ -201,27 +211,36 @@
 }
 
 /*
- * The document text must line up with the title above it. BlockNote reserves
- * 54 px of inline padding for the block handles, so on desktop the editor is
- * pulled back by the page gutter and the padding is trimmed to match; below
- * `lg` there is no gutter to borrow, so the handles are dropped and the "/"
- * menu carries the block commands.
+ * The gutter, the way Notion draws it: the text column is indented and the
+ * block handles live in the margin to its left, never over the text and never
+ * outside the panel. The detail panel pads its whole column by `3.5rem` and the
+ * editor claims that back with a negative margin, so the padding the handles
+ * are positioned against is the same edge the title sits on.
+ *
+ * The breakpoint is `sm`, not the app-wide `lg`: what decides whether there is
+ * room is the drawer's own width, and the drawer reaches its full `max-w-2xl`
+ * at `sm`. Below it the panel is a phone-width sheet, so the handles are
+ * dropped and the "/" menu carries the block commands on its own.
  */
 .workeee-editor .bn-editor {
   padding-inline: 0;
+  /* Somewhere to aim at: an empty description is still a page, not a line. */
+  min-height: 8rem;
+  font-size: 0.9375rem;
+  line-height: 1.65;
 }
 
 .workeee-editor .bn-side-menu {
   display: none;
 }
 
-@media (width >= 64rem) {
+@media (width >= 40rem) {
   .workeee-editor {
-    margin-inline: -2rem;
+    margin-inline: -3.5rem;
   }
 
   .workeee-editor .bn-editor {
-    padding-inline: 2rem;
+    padding-inline: 3.5rem;
   }
 
   .workeee-editor .bn-side-menu {
@@ -229,8 +248,66 @@
   }
 }
 
-/* The empty-document placeholder is muted copy, not editor text. */
-.workeee-editor .bn-inline-content:has(> .bn-placeholder)::before,
-.workeee-editor [data-placeholder]::before {
+/*
+ * The block handles. BlockNote hands them a hardcoded `text-gray-400`; they are
+ * quiet furniture in the margin, so they take the muted token and the app's
+ * control sizing instead.
+ */
+.workeee-editor .bn-side-menu {
+  gap: 0.125rem;
   color: hsl(var(--muted-foreground));
+}
+
+.workeee-editor .bn-side-menu button {
+  width: 1.5rem;
+  height: 1.5rem;
+  padding: 0;
+  color: inherit;
+  border-radius: var(--radius-sm);
+}
+
+/*
+ * Headings inside the body must stay under the task title (`text-2xl`) — the
+ * title names the task, a heading only divides its description. BlockNote sizes
+ * them from `--level`, so overriding that keeps its animation intact.
+ */
+.workeee-editor [data-content-type="heading"] {
+  --level: 1.375rem;
+}
+
+.workeee-editor [data-content-type="heading"][data-level="2"] {
+  --level: 1.125rem;
+}
+
+.workeee-editor [data-content-type="heading"][data-level="3"] {
+  --level: 1rem;
+}
+
+.workeee-editor [data-content-type="heading"][data-level="4"],
+.workeee-editor [data-content-type="heading"][data-level="5"],
+.workeee-editor [data-content-type="heading"][data-level="6"] {
+  --level: 0.9375rem;
+}
+
+/* A heading opens a section, so it gets air above it — but not at the top. */
+.workeee-editor
+  .bn-block-outer:not(:first-child):has(> .bn-block > [data-content-type="heading"]) {
+  margin-top: 1.25rem;
+}
+
+/* The placeholder is muted copy on the caret's own line, not italic prose. */
+.workeee-editor
+  .bn-block-content:has(.ProseMirror-trailingBreak:only-child)::after {
+  font-style: normal;
+  color: hsl(var(--muted-foreground));
+}
+
+.workeee-editor .bn-editor a {
+  color: hsl(var(--primary));
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.workeee-editor .bn-editor ::selection {
+  background-color: hsl(var(--primary) / 0.25);
 }
