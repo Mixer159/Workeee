@@ -14,6 +14,10 @@ declare global {
 
 const modules = import.meta.glob("./**/*.ts");
 
+/** An icon the sanitizer accepts unchanged — what it refuses is `svg.test.ts`. */
+const SVG_ICON =
+  '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><rect width="24" height="24" fill="#4F46E5"/></svg>';
+
 function setup() {
   return convexTest(schema, modules);
 }
@@ -291,6 +295,99 @@ describe("project icons", () => {
     await expect(
       member.as.mutation(api.projects.removeIcon, { projectId }),
     ).rejects.toThrow(/oprávnění/);
+    await expect(
+      member.as.mutation(api.projects.setSvgIcon, {
+        projectId,
+        svg: SVG_ICON,
+      }),
+    ).rejects.toThrow(/oprávnění/);
+  });
+
+  test("an SVG is stored as markup and served as a data: URI", async () => {
+    const t = setup();
+    const { owner, organizationId } = await createOrgWithOwner(
+      t,
+      "Jana Nováková",
+      "jana@example.com",
+    );
+    const { projectId } = await owner.as.mutation(api.projects.create, {
+      organizationId,
+      name: "Web",
+      emoji: "📦",
+    });
+
+    await owner.as.mutation(api.projects.setSvgIcon, {
+      projectId,
+      svg: SVG_ICON,
+    });
+
+    const project = await t.run(async (ctx) => await ctx.db.get(projectId));
+    expect(project?.iconSvg).toBe(SVG_ICON);
+    // The third answer to the same question replaces the other two.
+    expect(project?.emoji).toBeUndefined();
+    expect(project?.iconStorageId).toBeUndefined();
+
+    const read = await owner.as.query(api.projects.get, { projectId });
+    expect(read?.iconUrl?.startsWith("data:image/svg+xml,")).toBe(true);
+    const [listed] = await owner.as.query(api.projects.listVisible, {
+      organizationId,
+    });
+    expect(listed.iconUrl).toBe(read?.iconUrl);
+  });
+
+  test("an SVG that could execute never reaches the document", async () => {
+    const t = setup();
+    const { owner, organizationId } = await createOrgWithOwner(
+      t,
+      "Jana Nováková",
+      "jana@example.com",
+    );
+    const { projectId } = await owner.as.mutation(api.projects.create, {
+      organizationId,
+      name: "Web",
+    });
+
+    await expect(
+      owner.as.mutation(api.projects.setSvgIcon, {
+        projectId,
+        svg: '<svg xmlns="http://www.w3.org/2000/svg"><script>alert(1)</script></svg>',
+      }),
+    ).rejects.toThrow(/nepovolený prvek/);
+
+    expect(
+      (await t.run(async (ctx) => await ctx.db.get(projectId)))?.iconSvg,
+    ).toBeUndefined();
+  });
+
+  test("an emoji replaces an SVG", async () => {
+    const t = setup();
+    const { owner, organizationId } = await createOrgWithOwner(
+      t,
+      "Jana Nováková",
+      "jana@example.com",
+    );
+    const { projectId } = await owner.as.mutation(api.projects.create, {
+      organizationId,
+      name: "Web",
+    });
+    await owner.as.mutation(api.projects.setSvgIcon, {
+      projectId,
+      svg: SVG_ICON,
+    });
+
+    await owner.as.mutation(api.projects.setEmoji, { projectId, emoji: "📦" });
+    expect(
+      (await t.run(async (ctx) => await ctx.db.get(projectId)))?.iconSvg,
+    ).toBeUndefined();
+
+    await owner.as.mutation(api.projects.setSvgIcon, {
+      projectId,
+      svg: SVG_ICON,
+    });
+    await owner.as.mutation(api.projects.removeIcon, { projectId });
+    expect(
+      (await t.run(async (ctx) => await ctx.db.get(projectId)))?.iconSvg,
+    ).toBeUndefined();
   });
 });
 

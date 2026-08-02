@@ -1,6 +1,11 @@
 import { v } from "convex/values";
-import type { Id } from "./_generated/dataModel";
-import { mutation, query, type MutationCtx } from "./_generated/server";
+import type { Doc, Id } from "./_generated/dataModel";
+import {
+  mutation,
+  query,
+  type MutationCtx,
+  type QueryCtx,
+} from "./_generated/server";
 import {
   canCreateProject,
   canManageProject,
@@ -17,6 +22,7 @@ import {
   deleteStorageIfUnreferenced,
   isStorageIdReferenced,
 } from "./lib/storage";
+import { sanitizeIconSvg, svgDataUrl } from "./lib/svg";
 import { seedProjectStatuses } from "./lib/taskStatuses";
 import { normalizeEmoji, normalizeName } from "./lib/validation";
 
@@ -83,9 +89,7 @@ export const listVisible = query({
         _id: project._id,
         name: project.name,
         emoji: project.emoji ?? null,
-        iconUrl: project.iconStorageId
-          ? await ctx.storage.getUrl(project.iconStorageId)
-          : null,
+        iconUrl: await iconUrl(ctx, project),
       })),
     );
     return rows.sort((a, b) => a.name.localeCompare(b.name, "cs"));
@@ -121,9 +125,7 @@ export const get = query({
       name: project.name,
       archived: project.archived === true,
       emoji: project.emoji ?? null,
-      iconUrl: project.iconStorageId
-        ? await ctx.storage.getUrl(project.iconStorageId)
-        : null,
+      iconUrl: await iconUrl(ctx, project),
       canManage: canManageProject(access),
     };
   },
@@ -283,10 +285,12 @@ export const setIcon = mutation({
     }
 
     const previous = project.iconStorageId;
-    // An image and an emoji are two answers to the same question, so uploading
-    // one drops the other instead of leaving a hidden second icon behind.
+    // An upload, an SVG and an emoji are three answers to the same question, so
+    // setting one drops the others instead of leaving a hidden second icon
+    // behind.
     await ctx.db.patch(args.projectId, {
       iconStorageId: args.storageId,
+      iconSvg: undefined,
       emoji: undefined,
     });
     await deleteIconBlob(ctx, previous, args.storageId);
@@ -294,7 +298,46 @@ export const setIcon = mutation({
   },
 });
 
-/** The other half of `setIcon`: an emoji replaces the uploaded image. */
+/**
+ * The SVG icon, which takes a different road from every other image in the app:
+ * the markup travels as a mutation argument, is validated by
+ * `convex/lib/svg.ts` and is stored **on the project document**, never as a
+ * blob. `projects.get` then serves it as a `data:` URI.
+ *
+ * That is the whole security design, and it is why `setIcon` still refuses
+ * `image/svg+xml` and always will. A blob has a URL; a URL can be opened; an
+ * SVG opened as a page runs script on the storage origin. A `data:` URI has no
+ * origin and browsers refuse to navigate to one, so the markup is only ever
+ * pixels inside an `<img>`.
+ *
+ * It throws rather than returning a result — the `{ ok: false }` shape exists
+ * only for mutations that have to delete a rejected blob before answering, and
+ * a rejected SVG never became one.
+ */
+export const setSvgIcon = mutation({
+  args: { projectId: v.id("projects"), svg: v.string() },
+  handler: async (ctx, args) => {
+    const userId = await getAuthUserId(ctx);
+    if (!userId) {
+      throw new Error("Nejste přihlášeni.");
+    }
+    const { project } = await requireProjectManager(ctx, userId, args.projectId);
+
+    const result = sanitizeIconSvg(args.svg);
+    if (!result.ok) {
+      throw new Error(result.error);
+    }
+
+    await ctx.db.patch(args.projectId, {
+      iconSvg: result.svg,
+      iconStorageId: undefined,
+      emoji: undefined,
+    });
+    await deleteIconBlob(ctx, project.iconStorageId, undefined);
+  },
+});
+
+/** The third answer: an emoji replaces whichever image was there. */
 export const setEmoji = mutation({
   args: { projectId: v.id("projects"), emoji: v.string() },
   handler: async (ctx, args) => {
@@ -305,7 +348,11 @@ export const setEmoji = mutation({
     const { project } = await requireProjectManager(ctx, userId, args.projectId);
     const emoji = normalizeEmoji(args.emoji);
 
-    await ctx.db.patch(args.projectId, { emoji, iconStorageId: undefined });
+    await ctx.db.patch(args.projectId, {
+      emoji,
+      iconStorageId: undefined,
+      iconSvg: undefined,
+    });
     await deleteIconBlob(ctx, project.iconStorageId, undefined);
   },
 });
@@ -321,11 +368,27 @@ export const removeIcon = mutation({
 
     await ctx.db.patch(args.projectId, {
       iconStorageId: undefined,
+      iconSvg: undefined,
       emoji: undefined,
     });
     await deleteIconBlob(ctx, project.iconStorageId, undefined);
   },
 });
+
+/**
+ * The one address an icon is rendered from, whichever shape it was stored in: a
+ * storage URL for an uploaded raster image, a `data:` URI for an SVG. The two
+ * are exclusive, so the order here decides nothing.
+ */
+async function iconUrl(
+  ctx: QueryCtx,
+  project: Doc<"projects">,
+): Promise<string | null> {
+  if (project.iconStorageId) {
+    return await ctx.storage.getUrl(project.iconStorageId);
+  }
+  return project.iconSvg ? svgDataUrl(project.iconSvg) : null;
+}
 
 async function deleteIconBlob(
   ctx: MutationCtx,

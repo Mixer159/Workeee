@@ -134,15 +134,21 @@ export default defineSchema({
     .index("by_org_user", ["organizationId", "userId"]),
 
   /**
-   * A project's icon is either an uploaded image (`iconStorageId`) or an emoji
-   * (`emoji`) — never both. Setting one clears the other server-side, so the
-   * renderer never has to invent a precedence rule; with neither, the project
-   * falls back to a colored tile with its first letter.
+   * A project's icon is an uploaded raster image (`iconStorageId`), an SVG
+   * (`iconSvg`) or an emoji (`emoji`) — never two at once. Setting one clears
+   * the others server-side, so the renderer never has to invent a precedence
+   * rule; with none of them, the project falls back to a colored tile with its
+   * first letter.
+   *
+   * The SVG is markup on the document rather than a blob in storage: it is
+   * served as a `data:` URI, which has no origin to run script in and cannot be
+   * opened as a page. See `convex/lib/svg.ts`.
    */
   projects: defineTable({
     organizationId: v.id("organizations"),
     name: v.string(),
     iconStorageId: v.optional(v.id("_storage")),
+    iconSvg: v.optional(v.string()),
     emoji: v.optional(v.string()),
     createdBy: v.id("users"),
     archived: v.optional(v.boolean()),

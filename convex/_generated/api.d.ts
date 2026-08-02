@@ -24,6 +24,7 @@ import type * as lib_invites from "../lib/invites.js";
 import type * as lib_ordering from "../lib/ordering.js";
 import type * as lib_projectMembers from "../lib/projectMembers.js";
 import type * as lib_storage from "../lib/storage.js";
+import type * as lib_svg from "../lib/svg.js";
 import type * as lib_taskStatuses from "../lib/taskStatuses.js";
 import type * as lib_tasks from "../lib/tasks.js";
 import type * as lib_validation from "../lib/validation.js";
@@ -59,6 +60,7 @@ declare const fullApi: ApiFromModules<{
   "lib/ordering": typeof lib_ordering;
   "lib/projectMembers": typeof lib_projectMembers;
   "lib/storage": typeof lib_storage;
+  "lib/svg": typeof lib_svg;
   "lib/taskStatuses": typeof lib_taskStatuses;
   "lib/tasks": typeof lib_tasks;
   "lib/validation": typeof lib_validation;

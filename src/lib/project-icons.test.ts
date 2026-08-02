@@ -2,7 +2,9 @@ import { describe, expect, it } from "vitest";
 import {
   ICON_ACCEPT,
   MAX_ICON_BYTES,
+  MAX_ICON_SVG_BYTES,
   iconMimeType,
+  isSvgFile,
   validateIconFile,
 } from "@/lib/project-icons";
 
@@ -28,11 +30,12 @@ describe("iconMimeType", () => {
     );
   });
 
-  it("names an unnamed .ico by its extension", () => {
+  it("names an unnamed .ico or .svg by its extension", () => {
     expect(iconMimeType(file("favicon.ICO", ""))).toBe("image/x-icon");
     expect(iconMimeType(file("favicon.ico", "application/octet-stream"))).toBe(
       "image/x-icon",
     );
+    expect(iconMimeType(file("logo.SVG", ""))).toBe("image/svg+xml");
   });
 
   it("invents nothing for any other unnamed file", () => {
@@ -55,13 +58,15 @@ describe("validateIconFile", () => {
     expect(validateIconFile(file("favicon.ico", ""))).toBeNull();
   });
 
-  it("refuses SVG — it is a script surface", () => {
-    expect(validateIconFile(file("logo.svg", "image/svg+xml"))).toMatch(
-      /musí být obrázek/,
-    );
+  it("accepts an SVG small enough to ride in the project list", () => {
+    expect(validateIconFile(file("logo.svg", "image/svg+xml"))).toBeNull();
     expect(
       validateIconFile(file("logo.svg", "image/svg+xml;charset=utf-8")),
-    ).toMatch(/musí být obrázek/);
+    ).toBeNull();
+    // The 2 MB raster cap does not apply to markup, and the small one does.
+    expect(
+      validateIconFile(file("logo.svg", "image/svg+xml", MAX_ICON_SVG_BYTES + 1)),
+    ).toMatch(/nejvýš 32 kB/);
   });
 
   it("refuses anything that is not an image", () => {
@@ -78,14 +83,21 @@ describe("validateIconFile", () => {
   });
 });
 
+describe("isSvgFile", () => {
+  it("decides which of the two roads a file takes", () => {
+    expect(isSvgFile(file("logo.svg", "image/svg+xml"))).toBe(true);
+    expect(isSvgFile(file("logo.svg", ""))).toBe(true);
+    expect(isSvgFile(file("logo.png", "image/png"))).toBe(false);
+    expect(isSvgFile(file("favicon.ico", "image/x-icon"))).toBe(false);
+  });
+});
+
 describe("ICON_ACCEPT", () => {
-  it("offers .ico by extension as well as by type", () => {
+  it("offers .ico and .svg by extension as well as by type", () => {
     expect(ICON_ACCEPT).toContain("image/x-icon");
     expect(ICON_ACCEPT).toContain("image/vnd.microsoft.icon");
+    expect(ICON_ACCEPT).toContain("image/svg+xml");
     expect(ICON_ACCEPT.split(",")).toContain(".ico");
-  });
-
-  it("never offers SVG", () => {
-    expect(ICON_ACCEPT).not.toContain("svg");
+    expect(ICON_ACCEPT.split(",")).toContain(".svg");
   });
 });

@@ -18,7 +18,11 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { iconMimeType, validateIconFile } from "@/lib/project-icons";
+import {
+  iconMimeType,
+  isSvgFile,
+  validateIconFile,
+} from "@/lib/project-icons";
 
 /**
  * "Nový projekt": a name and an icon.
@@ -47,6 +51,7 @@ export function CreateProjectDialog({
   const createProject = useMutation(api.projects.create);
   const generateUploadUrl = useMutation(api.projects.generateUploadUrl);
   const setIcon = useMutation(api.projects.setIcon);
+  const setSvgIcon = useMutation(api.projects.setSvgIcon);
   const [name, setName] = useState("");
   const [emoji, setEmoji] = useState<string | null>(null);
   // The staged image and its preview URL are one value: the URL is created and
@@ -81,6 +86,11 @@ export function CreateProjectDialog({
   };
 
   const uploadIcon = async (projectId: Id<"projects">, icon: File) => {
+    // An SVG takes the other road — see `projects.setSvgIcon`.
+    if (isSvgFile(icon)) {
+      await setSvgIcon({ projectId, svg: await icon.text() });
+      return;
+    }
     const uploadUrl = await generateUploadUrl({ projectId });
     const response = await fetch(uploadUrl, {
       method: "POST",

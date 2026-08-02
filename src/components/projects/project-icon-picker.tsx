@@ -109,8 +109,8 @@ export function ProjectIconPicker({
       </div>
 
       <p className="text-xs text-muted-foreground">
-        Vyberte emoji, nebo nahrajte čtvercový obrázek (PNG, JPG, WEBP, GIF
-        nebo ICO), nejvýš 2 MB.
+        Vyberte emoji, nebo nahrajte čtvercový obrázek (PNG, JPG, WEBP, GIF,
+        SVG nebo ICO), nejvýš 2 MB — SVG 32 kB.
       </p>
     </div>
   );

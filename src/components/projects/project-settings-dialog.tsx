@@ -18,7 +18,11 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Separator } from "@/components/ui/separator";
-import { iconMimeType, validateIconFile } from "@/lib/project-icons";
+import {
+  iconMimeType,
+  isSvgFile,
+  validateIconFile,
+} from "@/lib/project-icons";
 
 type Project = {
   _id: Id<"projects">;
@@ -43,6 +47,7 @@ export function ProjectSettingsDialog({
   const setArchived = useMutation(api.projects.setArchived);
   const generateUploadUrl = useMutation(api.projects.generateUploadUrl);
   const setIcon = useMutation(api.projects.setIcon);
+  const setSvgIcon = useMutation(api.projects.setSvgIcon);
   const setEmoji = useMutation(api.projects.setEmoji);
   const removeIcon = useMutation(api.projects.removeIcon);
   const [uploading, setUploading] = useState(false);
@@ -69,6 +74,13 @@ export function ProjectSettingsDialog({
     }
     setUploading(true);
     try {
+      // An SVG never becomes a blob: its markup goes straight to the mutation,
+      // which validates it and stores it on the project document.
+      if (isSvgFile(file)) {
+        await setSvgIcon({ projectId: project._id, svg: await file.text() });
+        toast.success("Ikona byla nahrána.");
+        return;
+      }
       const uploadUrl = await generateUploadUrl({ projectId: project._id });
       const response = await fetch(uploadUrl, {
         method: "POST",

@@ -134,6 +134,7 @@ convex/
   tasks.test.ts          # security + ordering tests for the board
   taskDetail.test.ts     # security + logic tests for body, files, comments
   fileReaper.test.ts     # both reaper branches, the grace period, the batch cap
+  svg.test.ts            # the icon SVG gate: what it accepts, and the attacks
   lib/auth.ts            # getAuthUserId / getAuthUser / getUserByAuthId
   lib/access.ts          # the permission matrix — org + project access
   lib/activity.ts        # logActivity (audit trail)
@@ -143,6 +144,7 @@ convex/
   lib/ordering.ts        # fractional order helpers for board columns
   lib/projectMembers.ts  # who can open a project (assignees + mentions)
   lib/storage.ts         # global one-blob/one-owner invariant + safe deletion
+  lib/svg.ts             # the icon SVG allowlist + `data:` URI (never a blob)
   lib/tasks.ts           # getTaskAccess / requireTaskAccess / touchTask /
                          # deleteTaskChildren (body + files + comments)
   lib/taskStatuses.ts    # core status seed + ordered read
@@ -292,8 +294,8 @@ organization** — an admin runs it, the owner ends it.
 organizations        name, createdBy
 organizationMembers  organizationId, userId, role, access
                      by_org · by_user · by_org_user
-projects             organizationId, name, iconStorageId?, emoji?, createdBy,
-                     archived?   — iconStorageId and emoji are exclusive
+projects             organizationId, name, iconStorageId?, iconSvg?, emoji?,
+                     createdBy, archived?   — the three icons are exclusive
                      by_org · by_icon_storage
 projectMembers       projectId, userId, organizationId   — explicit grant, only
                      `limited` members need one
@@ -384,17 +386,17 @@ another membership or the onboarding screen.
 
 ### Project icons
 
-A project's icon is **an uploaded image or an emoji, never both** — `projects`
-carries `iconStorageId` *and* `emoji`, and every mutation that sets one clears
-the other, so `ProjectIcon` renders image → emoji → letter tile with no
-precedence rule to argue about. With neither it falls back to a deterministic
-colored tile with the project's first letter.
+A project's icon is **an uploaded raster image, an SVG or an emoji — never two
+at once**. `projects` carries `iconStorageId`, `iconSvg` and `emoji`, and every
+mutation that sets one clears the other two, so `ProjectIcon` renders image →
+emoji → letter tile with no precedence rule to argue about. With none of them it
+falls back to a deterministic colored tile with the project's first letter.
 
 - Upload: `projects.generateUploadUrl` (project-manager only) → client `POST`s
   the blob → `projects.setIcon`. `setIcon` validates the **stored** metadata via
   `ctx.db.system.get(storageId)` — must be `image/*`, must not be
-  `image/svg+xml` (a script surface, blocklisted the same way `lib/files.ts`
-  does it) and ≤ 2 MB, otherwise the blob is deleted and the mutation returns
+  `image/svg+xml` (see below — a blob has a URL, and that is the whole problem)
+  and ≤ 2 MB, otherwise the blob is deleted and the mutation returns
   `{ ok: false, error }`. The type is compared through `baseMimeType`
   (`convex/lib/files.ts`), so parameters and casing cannot smuggle an SVG past
   the exclusion. Replacing or removing an icon deletes the old blob; nothing
@@ -412,9 +414,36 @@ colored tile with the project's first letter.
   ends in `.ico` is uploaded as `image/x-icon`. Trusting the extension there
   gives away nothing: the browser writes that header itself, so a client that
   wanted to lie about a file never needed the fallback. `validateIconFile` is
-  the same rule, one round trip earlier; both are unit-tested in
-  `src/lib/project-icons.test.ts`, which is the only place the icon rules *can*
-  be tested — `convex-test`'s `storage.store` records no content type.
+  the same rule, one round trip earlier, and `isSvgFile` is what sends a file
+  down the other road; all three are unit-tested in
+  `src/lib/project-icons.test.ts`, which is the only place the *upload* rules
+  can be tested — `convex-test`'s `storage.store` records no content type.
+- **SVG never becomes a blob.** It is the one image format that is also a
+  document: opened as a page it runs script on the origin it was served from,
+  and `ctx.storage.getUrl` hands out exactly such a page. So an SVG icon takes
+  the other road — `projects.setSvgIcon({ projectId, svg })` carries the
+  *markup* as a mutation argument, `convex/lib/svg.ts` validates it, and it is
+  stored **on the project document** (`iconSvg`, ≤ 32 kB). `projects.get` and
+  `listVisible` serve it through `svgDataUrl` as a `data:` URI, which has no
+  origin to execute in and which browsers have refused to navigate to for years.
+  Both halves of the danger are removed rather than mitigated, which is why
+  `setIcon` still refuses `image/svg+xml` and always will: **the format is not
+  the problem, the URL is.**
+  - The sanitizer **validates, not cleans**: element, attribute and reference
+    allowlists, and anything it cannot prove harmless is refused with a sentence
+    naming it. Cleaning means guessing what a browser will make of the
+    leftovers. It is also stricter than XML on purpose — unquoted attribute
+    values, CDATA, doctypes, processing instructions, numeric character
+    references and control bytes are all refused, because each is a place where
+    its reading and a browser's could differ, and no exported icon contains one.
+  - It is the whole of `convex/svg.test.ts`, half of which is an attack battery
+    (`<script>`, `onload`, `<foreignObject>`, `@import`, `url(https://…)`,
+    `&#106;avascript:`, a nested `<svg>`, an entity declaration).
+  - The 32 kB cap is not about parsing, it is about `listVisible`: every screen
+    subscribes to it, and the markup rides along in the payload.
+  - Two things it *does* rewrite: the XML declaration and comments are dropped,
+    and a missing `xmlns` is added — without the namespace an SVG renders as
+    nothing inside an `<img>`.
 - Emoji: `projects.setEmoji` (project-manager only), or the optional `emoji`
   argument of `projects.create`. The grid the client offers
   (`src/lib/project-emojis.ts`) is **not** known to the server — duplicating it
@@ -1041,6 +1070,12 @@ Day-one decisions:
   strip and not to the document, and the columns step down to 256 px below the
   new `board:` (1408 px) breakpoint so a default project fits from ~1260 px
   instead of 1408. See **How wide the board has to be**.
+- **Phase 10 (done).** A project icon may now be the file a team already has of
+  itself: `.ico` alongside the other raster formats, and **SVG**, which took a
+  road of its own — the markup is validated by `convex/lib/svg.ts`, stored on
+  the project document and served as a `data:` URI, so the format is supported
+  without ever creating the thing that made it dangerous, a URL pointing at an
+  SVG. See **Project icons**.
 - **Later.** List view, due dates, filters in the URL, notifications, activity
   timeline, audit log surface.
 
@@ -1238,6 +1273,26 @@ Day-one decisions:
 - The TypeScript target predates ES2018, so a **named capture group** is a build
   error (`TS1503`) even though every runtime we ship to supports it. Positional
   groups only.
+- **What makes an SVG dangerous is the URL, not the format.** In an `<img>` it
+  is inert — no script, no external requests — and top-level navigation to a
+  `data:` URI has been refused by every browser for years. So an SVG stored as
+  *markup on a document* and served as a `data:` URI cannot execute anything
+  even if the sanitizer is wrong, while the same bytes in Convex storage are one
+  right-click away from a page running script on the storage origin. That is the
+  entire difference between `projects.setSvgIcon` and `projects.setIcon`, and
+  the reason the blocklist in `lib/files.ts` stays exactly as it is.
+- A sanitizer that **refuses** is a different (and much smaller) problem than one
+  that **cleans**: cleaning has to predict what a browser will do with what is
+  left, refusing only has to be sure about what it accepted. Which is also why
+  `convex/lib/svg.ts` is stricter than XML — CDATA, doctypes, unquoted attribute
+  values and numeric character references are refused not because each is an
+  exploit but because each is a place where its reading and a browser's could
+  diverge.
+- Strip a comment from the top of a file and the newline that followed it is
+  still there. `sanitizeIconSvg` decided documents were not SVG because
+  `startsWith("<svg")` ran against `"\n<svg …"` — found by running the app's own
+  `src/app/icon.svg` through it, which is the only sample in the repo written by
+  a person rather than by the test.
 - **A file input's `accept` needs extensions, not only MIME types.** `File.type`
   comes from the operating system, and for `.ico` the three browsers disagree
   (`image/x-icon`, `image/vnd.microsoft.icon`, or nothing at all). A list of
