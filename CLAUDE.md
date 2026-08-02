@@ -79,8 +79,10 @@ NEXT_PUBLIC_SITE_URL=http://localhost:3000
 ```
 
 `NEXT_PUBLIC_SITE_URL` is also the origin invite links are built from
-(`${NEXT_PUBLIC_SITE_URL}/join/<code>`, `src/lib/invites.ts`) — it must be the
-production URL in production, or people get links to the wrong host.
+(`${NEXT_PUBLIC_SITE_URL}/join/<code>`, `src/lib/invites.ts`) and the
+`metadataBase` every `og:image` URL is resolved against — it must be the
+production URL in production, or people get links to the wrong host and
+unfurls that point at `localhost`.
 
 Convex deployment env (`pnpm exec convex env list`):
 
@@ -147,8 +149,12 @@ convex/
   lib/validation.ts      # normalizeName, normalizeTitle
 src/
   app/
-    layout.tsx           # fonts, pre-hydration theme script, providers, Toaster
-    icon.svg             # favicon — indigo rounded square with a white "W"
+    layout.tsx           # fonts, pre-hydration theme script, providers, Toaster,
+                         # metadataBase + the OpenGraph / Twitter copy
+    icon.svg             # the mark — indigo tile, white letterform W
+    favicon.ico          # 16 · 32 · 48, rasterized from icon.svg
+    apple-icon.png       # 180, full bleed (iOS rounds it itself)
+    opengraph-image.tsx  # the link preview every page inherits
     not-found.tsx        # 404, outside the shell, with its own frame
     (auth)/prihlaseni    # sign in       (?invite=<code> carries a pending invite)
     (auth)/registrace    # sign up       (?invite=<code> likewise)
@@ -156,7 +162,7 @@ src/
     (dashboard)/projekt/[id]            # project board + task drawer (?ukol=<id>)
     (dashboard)/projekt/[id]/ukol/[taskId]  # redirect, keeps older links alive
     (dashboard)/nastaveni/organizace    # organization settings, managers only
-    join/[code]/         # PUBLIC invite landing page
+    join/[code]/         # PUBLIC invite landing page + its own opengraph-image
     api/auth/[...all]/   # proxy into the Convex deployment
   components/
     ui/                  # shadcn primitives, ours to edit
@@ -182,7 +188,7 @@ src/
                          # use-now, use-autosave-text
   lib/                   # auth-client, auth-server, auth-errors, blocknote-cs,
                          # clipboard, comment-draft, current-organization,
-                         # format, invites, organization, project-emojis,
+                         # format, invites, og, organization, project-emojis,
                          # save-state, task-status-colors, tasks, theme, upload,
                          # user, utils
 ```
@@ -806,6 +812,71 @@ raise `limit` before that stops being true.
   missing project or task, the organization settings guards and the 404 page all
   use it, so all five read the same.
 
+## The mark, the icons and the link previews
+
+### The mark
+
+`src/app/icon.svg` is the only drawing of the brand: the indigo tile
+(`#4F46E5`, the light theme's `--primary`, radius `14.5/64` ≈ the platform
+squircle) and a white **W**. The W is a **filled letterform** — flat top
+terminals, a pointed apex at cap height, pointed feet — not a stroked zigzag,
+so it reads as a letter at 96 px and still as a letter at 16. The `stroke` in
+the same white is a 1.5-unit softening of the vertices; sharp needles go wispy
+once the tile is 16 px, and the softness is the same idea as `--radius`.
+
+The two raster files beside it are **rasterized from that SVG** and have no
+other source. Chrome is the rasterizer, because it is the renderer the icon has
+to survive anyway:
+
+```bash
+# 16 / 32 / 48 for the .ico, 180 (with the rounded corners removed) for iOS
+chrome --headless --default-background-color=00000000 \
+       --screenshot=out.png --window-size=N,N --force-device-scale-factor=1 wrapper.html
+```
+
+- `favicon.ico` — 16 · 32 · 48 PNGs in an ICO container. It exists because
+  crawlers, chat clients and feed readers still ask for `/favicon.ico` by hand.
+  It replaced `create-next-app`'s 25 931-byte default, which had been shipping
+  the Next.js logo as this product's icon.
+- `apple-icon.png` — 180 × 180, **full bleed, no rounded corners**: iOS applies
+  its own mask, and our corners under its mask would show as pale notches.
+
+### The link previews
+
+`src/lib/og.tsx` draws every unfurl: 1200 × 630, the dark theme's colors spelled
+out (Satori never sees `globals.css`), the mark and the wordmark at the top, one
+big line at the bottom, an optional chip on the right and an optional muted line
+under the title. Two callers, and neither adds a design:
+
+| File | What it says |
+|---|---|
+| `src/app/opengraph-image.tsx` | "Interní aplikace pro týmy, projekty a úkoly." — inherited by every route |
+| `src/app/join/[code]/opengraph-image.tsx` | chip "Pozvánka" + "Připojte se k organizaci" |
+
+The invite page gets its own because **an invite link is the one address people
+paste into a chat**. It deliberately names no organization: the unfurl is cached
+and re-shared by the chat, not by the person who was invited, and
+`invites.getByCode` is public enough already.
+
+- **`metadataBase` is `NEXT_PUBLIC_SITE_URL`** (`layout.tsx`) — the same origin
+  invite links are built from, so a misconfigured deployment gets both wrong at
+  once instead of one of them quietly.
+- **There are no `twitter-image` files.** Next fills `twitter:image` from the
+  OpenGraph image on its own; a second copy would be a second thing to keep in
+  sync. `twitter.card` is `summary_large_image` so X renders it big.
+- `openGraph` in a child's metadata **replaces** the layout's rather than merging
+  into it, which is why the join page repeats `siteName` / `locale` / `type` in
+  full. It leaves `images` out on purpose — that omission is what lets the
+  `opengraph-image.tsx` beside it supply the picture.
+- Geist is fetched from Google Fonts at render time and the root image is
+  therefore **prerendered at build**, the same network the app already needs for
+  `next/font`. If the fetch fails the fonts are dropped and `ImageResponse`
+  falls back to its bundled face — a preview in the wrong typeface still beats
+  no preview.
+- The mark is spelled out a second time inside `og.tsx` as a data URI, because
+  Satori is not the DOM and cannot import `icon.svg`. **The two carry the same
+  path and change together.**
+
 ## Locale
 
 - All user-facing text is **Czech**, sentence case, concrete, no marketing voice.
@@ -913,6 +984,12 @@ Day-one decisions:
   Notion's gutter (`sm:px-14`) so the block handles sit inside it, the header
   became a toolbar at the edge, headings were scaled under the task title, and
   the separator that boxed the body in is gone.
+- **Phase 8 (done).** The product finally looks like itself outside its own
+  window: a redrawn mark (a filled letterform W on the indigo tile) as
+  `icon.svg`, a real `favicon.ico` and an iOS icon rasterized from it — the
+  `create-next-app` default had been shipping the Next.js logo until now — and
+  generated 1200 × 630 link previews for every route plus a dedicated one for
+  the invite page, with `metadataBase`, OpenGraph and Twitter copy to carry them.
 - **Later.** List view, due dates, filters in the URL, notifications, activity
   timeline, audit log surface.
 
@@ -1080,3 +1157,25 @@ Day-one decisions:
 - The open task is put in the address with `window.history.replaceState`, not
   `router.push`. A real navigation would re-fetch the RSC payload just to change
   a query string the server never reads, and the panel would open a beat late.
+- **An XML comment may not contain a double hyphen.** A comment in `icon.svg`
+  that named `--primary` the way CSS does made the whole file unparseable, and an
+  unparseable SVG favicon does not warn — it just is not there. Documenting a
+  token by name inside an SVG is not worth the trap.
+- `create-next-app`'s `favicon.ico` (25 931 bytes, the Next.js logo) survives
+  every amount of app work, because `app/icon.svg` does not replace it: Next
+  emits *both* link tags and `/favicon.ico` is what anything that guesses will
+  ask for. Check the bytes, not the tag.
+- **Satori cannot read `woff2`**, which is the only thing Google Fonts serves to
+  a modern user agent. Asking `fonts.googleapis.com/css2` with a 2011 Chrome
+  UA string returns a plain `woff` instead, and that it can parse. Same font the
+  app already downloads through `next/font`, no new dependency.
+- Satori is not a browser: an absolutely positioned circle used as a glow is
+  clipped by the layout box and shows its edges, so the glow is a
+  `radial-gradient` painted on the canvas itself. And it sets text word by word
+  without ever tightening the space between them, so tracked-in display type
+  comes out looking pulled apart — worst around short Czech words. Setting the
+  words as flex items with an explicit margin is what puts the word space back
+  under our control.
+- The TypeScript target predates ES2018, so a **named capture group** is a build
+  error (`TS1503`) even though every runtime we ship to supports it. Positional
+  groups only.

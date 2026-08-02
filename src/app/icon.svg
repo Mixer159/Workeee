@@ -1,11 +1,21 @@
+<!--
+  The Workeee mark: the brand indigo tile (the primary token, 243 75% 59%) with
+  a white W. The W is a filled letterform, not a stroked zigzag: flat top
+  terminals, pointed apex and feet, so it reads as a letter rather than a
+  chevron. The 1.5 stroke in the same white softens the vertices, because sharp
+  needles go wispy at 16 px.
+
+  XML comments may not contain a double hyphen, so no token is named here the
+  way CSS would name it. An invalid comment makes the whole file unparseable and
+  the favicon silently disappears.
+-->
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64">
-  <rect width="64" height="64" rx="14" fill="#4F46E5" />
+  <rect width="64" height="64" rx="14.5" fill="#4F46E5" />
   <path
-    d="M13 19 L23 45 L32 27 L41 45 L51 19"
-    fill="none"
+    d="M13 19 H20.5 L25.27 30.28 L32 19 L38.73 30.28 L43.5 19 H51 L40 45 L32 31.58 L24 45 Z"
+    fill="#ffffff"
     stroke="#ffffff"
-    stroke-width="6"
-    stroke-linecap="round"
+    stroke-width="1.5"
     stroke-linejoin="round"
   />
 </svg>

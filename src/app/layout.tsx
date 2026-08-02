@@ -15,9 +15,36 @@ const geistMono = Geist_Mono({
   subsets: ["latin", "latin-ext"],
 });
 
+const DESCRIPTION = "Interní aplikace pro týmy, projekty a úkoly.";
+
+/**
+ * `metadataBase` is what turns the generated icons and `opengraph-image` into
+ * the absolute URLs an unfurl needs — the same origin invite links are built
+ * from, so a misconfigured deployment gets both wrong at once instead of one
+ * quietly.
+ *
+ * There is no `twitter.images`: X falls back to `og:image`, and a second copy
+ * of the same picture is a second thing to keep in sync.
+ */
 export const metadata: Metadata = {
+  metadataBase: new URL(
+    process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3000",
+  ),
   title: "Workeee",
-  description: "Interní aplikace pro týmy, projekty a úkoly.",
+  description: DESCRIPTION,
+  applicationName: "Workeee",
+  openGraph: {
+    type: "website",
+    siteName: "Workeee",
+    locale: "cs_CZ",
+    title: "Workeee",
+    description: DESCRIPTION,
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "Workeee",
+    description: DESCRIPTION,
+  },
 };
 
 export default function RootLayout({
