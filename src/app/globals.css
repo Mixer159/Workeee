@@ -120,6 +120,13 @@
 }
 
 @theme inline {
+  /* The one breakpoint that is not about the shell but about the board: the
+     width at which a default three-column board fits its 288 px columns
+     without scrolling (256 px rail + 2 × 32 px padding + 1036 px of board).
+     Below it the columns step down to 256 px, which is what keeps a fresh
+     project from scrolling sideways on a 1280 px laptop. */
+  --breakpoint-board: 1408px;
+
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
   --font-heading: var(--font-geist-sans);

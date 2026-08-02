@@ -7,10 +7,7 @@ import { Loader2Icon } from "lucide-react";
 import { toast } from "sonner";
 import { api } from "@convex/_generated/api";
 import type { Id } from "@convex/_generated/dataModel";
-import {
-  ProjectIconPicker,
-  validateIconFile,
-} from "@/components/projects/project-icon-picker";
+import { ProjectIconPicker } from "@/components/projects/project-icon-picker";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -21,6 +18,7 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { iconMimeType, validateIconFile } from "@/lib/project-icons";
 
 /**
  * "Nový projekt": a name and an icon.
@@ -86,7 +84,7 @@ export function CreateProjectDialog({
     const uploadUrl = await generateUploadUrl({ projectId });
     const response = await fetch(uploadUrl, {
       method: "POST",
-      headers: { "Content-Type": icon.type },
+      headers: { "Content-Type": iconMimeType(icon) },
       body: icon,
     });
     if (!response.ok) {

@@ -35,7 +35,7 @@ export function isImageMimeType(mimeType: string): boolean {
 }
 
 /** `text/plain;charset=utf-8` and `text/plain` are the same type. */
-function baseMimeType(value: string): string {
+export function baseMimeType(value: string): string {
   return value.split(";")[0]!.trim().toLowerCase();
 }
 

@@ -5,27 +5,8 @@ import { Loader2Icon, UploadIcon } from "lucide-react";
 import { ProjectIcon } from "@/components/projects/project-icon";
 import { Button } from "@/components/ui/button";
 import { PROJECT_EMOJIS } from "@/lib/project-emojis";
+import { ICON_ACCEPT } from "@/lib/project-icons";
 import { cn } from "@/lib/utils";
-
-/** Mirrors the server cap in `convex/projects.ts`. */
-export const MAX_ICON_BYTES = 2 * 1024 * 1024;
-
-/** What a project icon may be. SVG is excluded — it is a script surface. */
-export const ICON_ACCEPT = "image/png,image/jpeg,image/webp,image/gif";
-
-/**
- * Reject a file before it leaves the browser. The server re-checks the *stored*
- * blob, so this is only there to fail fast with the same sentence.
- */
-export function validateIconFile(file: File): string | null {
-  if (!file.type.startsWith("image/") || file.type === "image/svg+xml") {
-    return "Ikona musí být obrázek (PNG, JPG, WEBP nebo GIF).";
-  }
-  if (file.size > MAX_ICON_BYTES) {
-    return "Obrázek může mít nejvýš 2 MB.";
-  }
-  return null;
-}
 
 /**
  * The icon control shared by "Nový projekt" and the project settings.
@@ -128,8 +109,8 @@ export function ProjectIconPicker({
       </div>
 
       <p className="text-xs text-muted-foreground">
-        Vyberte emoji, nebo nahrajte čtvercový obrázek (PNG, JPG, WEBP nebo
-        GIF), nejvýš 2 MB.
+        Vyberte emoji, nebo nahrajte čtvercový obrázek (PNG, JPG, WEBP, GIF
+        nebo ICO), nejvýš 2 MB.
       </p>
     </div>
   );

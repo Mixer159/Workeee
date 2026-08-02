@@ -44,8 +44,14 @@ export function AppShell({ children }: { children: ReactNode }) {
         <Wordmark href="/" />
       </header>
 
-      <main className="flex-1 lg:pl-64">
-        {/* 6xl, not 5xl: the board needs 1088 px for three columns plus "Přidat
+      {/* `min-w-0` is load-bearing, not tidiness. A flex item's automatic
+          minimum size is its min-content size, and the board declares
+          `min-w-max` inside its own scroll strip — so without this, `main`
+          grew to the whole board's width and the *page* scrolled sideways
+          instead of the strip, carrying the project header off-screen with
+          it. */}
+      <main className="min-w-0 flex-1 lg:pl-64">
+        {/* 6xl, not 5xl: the board needs 1036 px for three columns plus "Přidat
             stav", and at 5xl a default project scrolled horizontally on a
             1440 px screen. */}
         <div className="mx-auto w-full max-w-6xl px-4 py-8 lg:px-8 lg:py-10">

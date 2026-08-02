@@ -11,6 +11,7 @@ import {
 } from "./lib/access";
 import { logActivity } from "./lib/activity";
 import { getAuthUserId } from "./lib/auth";
+import { baseMimeType } from "./lib/files";
 import { listProjectMemberIds } from "./lib/projectMembers";
 import {
   deleteStorageIfUnreferenced,
@@ -262,16 +263,18 @@ export const setIcon = mutation({
     if (!metadata) {
       throw new Error("Nahrání souboru se nepovedlo. Zkuste to prosím znovu.");
     }
-    // SVG is an image that can carry script, and the icon is served straight
-    // from storage — the same reason `convex/lib/files.ts` blocklists it.
-    if (
-      !metadata.contentType?.startsWith("image/") ||
-      metadata.contentType === "image/svg+xml"
-    ) {
+    // Any raster image is welcome — PNG, JPG, WEBP, GIF and the `.ico` a
+    // browser hands over as `image/x-icon` or `image/vnd.microsoft.icon`. SVG is
+    // the one exception: it is an image that can carry script, and the icon is
+    // served straight from storage — the same reason `convex/lib/files.ts`
+    // blocklists it. The type is compared without its parameters, so
+    // `image/svg+xml;charset=utf-8` cannot walk past the exclusion.
+    const contentType = baseMimeType(metadata.contentType ?? "");
+    if (!contentType.startsWith("image/") || contentType === "image/svg+xml") {
       await deleteStorageIfUnreferenced(ctx, args.storageId);
       return {
         ok: false as const,
-        error: "Ikona musí být obrázek (PNG, JPG, WEBP nebo GIF).",
+        error: "Ikona musí být obrázek (PNG, JPG, WEBP, GIF nebo ICO).",
       };
     }
     if (metadata.size > MAX_ICON_BYTES) {

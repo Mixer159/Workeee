@@ -92,7 +92,9 @@ export function TaskColumn({
       ref={setNodeRef}
       style={{ transform: CSS.Transform.toString(transform), transition }}
       className={cn(
-        "flex w-72 shrink-0 flex-col gap-2",
+        // 256 px until the viewport can afford three 288 px columns; see
+        // `--breakpoint-board` in globals.css.
+        "flex w-64 shrink-0 flex-col gap-2 board:w-72",
         isDragging && "opacity-40",
       )}
     >

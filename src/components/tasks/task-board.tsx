@@ -244,7 +244,10 @@ export function TaskBoard({
           <button
             type="button"
             onClick={() => setAddingStatus(true)}
-            className="flex h-8 w-44 shrink-0 items-center gap-1.5 rounded-lg border border-dashed border-border px-2 text-sm text-muted-foreground transition-colors outline-none hover:bg-accent hover:text-foreground focus-visible:ring-3 focus-visible:ring-ring/50"
+            // Sized to its label, not to a column: the ~60 px it gives back is
+            // the difference between a three-column board fitting a 1280 px
+            // laptop and scrolling on one.
+            className="flex h-8 w-fit shrink-0 items-center gap-1.5 rounded-lg border border-dashed border-border px-3 text-sm whitespace-nowrap text-muted-foreground transition-colors outline-none hover:bg-accent hover:text-foreground focus-visible:ring-3 focus-visible:ring-ring/50"
           >
             <PlusIcon className="size-4" />
             Přidat stav
@@ -254,13 +257,13 @@ export function TaskBoard({
 
       <DragOverlay>
         {activeTask ? (
-          <div className="w-72 rounded-lg border bg-card p-3 shadow-md">
+          <div className="w-64 rounded-lg border bg-card p-3 shadow-md board:w-72">
             <p className="text-sm leading-snug break-words">
               {activeTask.title}
             </p>
           </div>
         ) : activeColumn ? (
-          <div className="flex h-8 w-72 items-center gap-2 rounded-lg border bg-card px-2 shadow-md">
+          <div className="flex h-8 w-64 items-center gap-2 rounded-lg border bg-card px-2 shadow-md board:w-72">
             <StatusDot color={activeColumn.color} />
             <span className="truncate text-sm font-medium">
               {activeColumn.name}
@@ -437,7 +440,10 @@ function BoardSkeleton() {
   return (
     <div className="flex gap-4">
       {[0, 1, 2].map((column) => (
-        <div key={column} className="flex w-72 shrink-0 flex-col gap-2">
+        <div
+          key={column}
+          className="flex w-64 shrink-0 flex-col gap-2 board:w-72"
+        >
           <Skeleton className="h-6 w-32" />
           <Skeleton className="h-16 w-full" />
           <Skeleton className="h-16 w-full" />

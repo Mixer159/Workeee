@@ -189,8 +189,8 @@ src/
   lib/                   # auth-client, auth-server, auth-errors, blocknote-cs,
                          # clipboard, comment-draft, current-organization,
                          # format, invites, og, organization, project-emojis,
-                         # save-state, task-status-colors, tasks, theme, upload,
-                         # user, utils
+                         # project-icons, save-state, task-status-colors, tasks,
+                         # theme, upload, user, utils
 ```
 
 No barrel files, no `index.ts` re-exports — import by full path.
@@ -395,8 +395,26 @@ colored tile with the project's first letter.
   `ctx.db.system.get(storageId)` — must be `image/*`, must not be
   `image/svg+xml` (a script surface, blocklisted the same way `lib/files.ts`
   does it) and ≤ 2 MB, otherwise the blob is deleted and the mutation returns
-  `{ ok: false, error }`. Replacing or removing an icon deletes the old blob;
-  nothing else references it.
+  `{ ok: false, error }`. The type is compared through `baseMimeType`
+  (`convex/lib/files.ts`), so parameters and casing cannot smuggle an SVG past
+  the exclusion. Replacing or removing an icon deletes the old blob; nothing
+  else references it.
+- **PNG, JPG, WEBP, GIF and `.ico`.** A favicon is the file a team already has
+  of itself, so it is accepted like any other raster image — the server's rule
+  is `image/*` and always was, and the work is on the browser side, in
+  `src/lib/project-icons.ts`: the file picker's `accept` lists `image/x-icon`
+  (Chrome), `image/vnd.microsoft.icon` (Firefox) **and** the bare `.ico`, and
+  `iconMimeType(file)` decides the `Content-Type` the blob is uploaded under.
+  That last one is the part that matters: a machine whose registry has no entry
+  for the extension reports no type at all, the blob would reach storage
+  unnamed, and `setIcon` — which trusts the *stored* type — would refuse it as
+  "not an image". So an unnamed (or `application/octet-stream`) file whose name
+  ends in `.ico` is uploaded as `image/x-icon`. Trusting the extension there
+  gives away nothing: the browser writes that header itself, so a client that
+  wanted to lie about a file never needed the fallback. `validateIconFile` is
+  the same rule, one round trip earlier; both are unit-tested in
+  `src/lib/project-icons.test.ts`, which is the only place the icon rules *can*
+  be tested — `convex-test`'s `storage.store` records no content type.
 - Emoji: `projects.setEmoji` (project-manager only), or the optional `emoji`
   argument of `projects.create`. The grid the client offers
   (`src/lib/project-emojis.ts`) is **not** known to the server — duplicating it
@@ -412,7 +430,9 @@ controlled and shared by both dialogs. That is what lets "Nový projekt"
 does not exist yet, so the dialog creates the project, then follows the ordinary
 upload path and toasts "Projekt je založený, ale ikonu se nepovedlo nahrát" if
 only the second half fails — while the settings dialog writes every choice
-immediately.
+immediately. It renders the control and nothing else: the rules an uploaded file
+has to satisfy live in `src/lib/project-icons.ts`, because the two dialogs need
+them for the upload itself, not only for the input.
 
 ### Where a project is created
 
@@ -483,6 +503,29 @@ suggested templates ("Potřeba revize" amber, "Potřeba informace" violet,
 `projects.assignableMembers` — not `organizations.members` — feeds the assignee
 select: it returns the `full` members plus everyone with an explicit grant, and
 `tasks.setAssignee` re-checks that the assignee can open the project.
+
+### How wide the board has to be
+
+The board is the only screen with a hard width appetite, and two rules keep it
+from spending that appetite out of the page:
+
+- **`main` carries `min-w-0`** (`app-shell.tsx`). The board strip is
+  `overflow-x-auto` with a `min-w-max` row inside it, and a flex item's
+  automatic minimum size is its min-content size — so without `min-w-0` that
+  `min-w-max` propagated all the way up and stretched `main` to the whole
+  board. The strip then never scrolled, the **document** did, and the project
+  header's "Nastavení" was dragged off the right edge of a 1294 px window. The
+  symptom looks like a header bug and is a flex-sizing one.
+- **Columns are `w-64`, and `board:w-72` (≥ 1408 px)**, with the "Přidat stav"
+  button sized to its label (`w-fit`) rather than to a column. The arithmetic:
+  usable width is `min(viewport − 256 rail, 1152) − 64 padding`, and a default
+  three-status board needs `3 × column + 3 × 16 gap + ~124 button`. At 256 px
+  columns that is ~940 px, so a fresh project stops scrolling sideways from
+  about **1260 px** — it used to need 1408. 1408 is exactly where 288 px
+  columns fit, which is what `--breakpoint-board` names.
+
+Below ~1260 px the strip scrolls horizontally, which is what a Kanban board is
+supposed to do. The page never does.
 
 ### Client-side tenant context
 
@@ -802,10 +845,13 @@ raise `limit` before that stops being true.
 - Single typeface: Geist Sans (`--font-sans`, also `--font-heading`). Headings
   differ by weight, not family.
 - Breakpoint contract: `lg:` (1024 px) splits the desktop sidebar from the
-  mobile drawer.
-- The shell's content column is **`max-w-6xl`**. Not 5xl: the board needs
-  1088 px for three columns plus "Přidat stav", and at 5xl a freshly created
-  project scrolled sideways on a 1440 px screen.
+  mobile drawer. One custom breakpoint exists, **`board:` (1408 px)**, declared
+  in `globals.css` — it is not about the shell but about the board; see
+  **How wide the board has to be**.
+- The shell's content column is **`max-w-6xl`**, so the widest the board strip
+  can ever be is 1088 px. `main` also carries **`min-w-0`** — see
+  **How wide the board has to be**, it is the difference between the board
+  scrolling and the page scrolling.
 - "Nothing here (yet)" and "this address leads nowhere" share one component,
   `src/components/layout/empty-state.tsx` — a dashed panel with a heading, one
   sentence and the action or link that unblocks the person. The dashboard, a
@@ -990,6 +1036,11 @@ Day-one decisions:
   `create-next-app` default had been shipping the Next.js logo until now — and
   generated 1200 × 630 link previews for every route plus a dedicated one for
   the invite page, with `metadataBase`, OpenGraph and Twitter copy to carry them.
+- **Phase 9 (done).** The board stopped taking the page with it on a narrow
+  laptop: `main` got `min-w-0` so the horizontal scroll belongs to the board
+  strip and not to the document, and the columns step down to 256 px below the
+  new `board:` (1408 px) breakpoint so a default project fits from ~1260 px
+  instead of 1408. See **How wide the board has to be**.
 - **Later.** List view, due dates, filters in the URL, notifications, activity
   timeline, audit log surface.
 
@@ -1082,6 +1133,14 @@ Day-one decisions:
 - The app-wide `lg:` breakpoint is about the sidebar. A panel inside a drawer has
   its own width (`max-w-2xl` from `sm:`), so its internals key off `sm:` — using
   `lg:` there means a 672 px panel laid out for a phone between `sm` and `lg`.
+- **An `overflow-x-auto` strip does not contain its own width unless every flex
+  ancestor says `min-w-0`.** A flex item's automatic minimum size is its
+  min-content size, and `min-w-max` inside the scroll container is a min-content
+  size — so the strip's appetite climbed out through `main` and the whole
+  document scrolled sideways instead. It reported itself as "a button is off the
+  right edge", not as "the board is too wide". A four-line static HTML
+  reproduction driven by `chrome --headless --dump-dom` settled it in a minute,
+  which beats guessing at a page that needs a login to render.
 - Relative time ("před 5 min") cannot read `Date.now()` during render
   (`react-hooks/purity`) and cannot tick from a `setState` in an effect
   (`react-hooks/set-state-in-effect`). `useNow()` is a module-level store with one
@@ -1179,3 +1238,11 @@ Day-one decisions:
 - The TypeScript target predates ES2018, so a **named capture group** is a build
   error (`TS1503`) even though every runtime we ship to supports it. Positional
   groups only.
+- **A file input's `accept` needs extensions, not only MIME types.** `File.type`
+  comes from the operating system, and for `.ico` the three browsers disagree
+  (`image/x-icon`, `image/vnd.microsoft.icon`, or nothing at all). A list of
+  types alone therefore greys the file out in the picker on the machine that has
+  it, and a server that trusts the *stored* content type then refuses whatever
+  did get through as "not an image". Both halves have to be handled: `.ico` in
+  the `accept`, and a content type decided from the extension when the browser
+  offers none.

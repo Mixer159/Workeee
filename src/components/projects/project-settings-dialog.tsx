@@ -9,10 +9,7 @@ import { api } from "@convex/_generated/api";
 import type { Id } from "@convex/_generated/dataModel";
 import { NameForm } from "@/components/forms/name-form";
 import { InvitesPanel } from "@/components/invites/invites-panel";
-import {
-  ProjectIconPicker,
-  validateIconFile,
-} from "@/components/projects/project-icon-picker";
+import { ProjectIconPicker } from "@/components/projects/project-icon-picker";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -21,6 +18,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Separator } from "@/components/ui/separator";
+import { iconMimeType, validateIconFile } from "@/lib/project-icons";
 
 type Project = {
   _id: Id<"projects">;
@@ -74,7 +72,7 @@ export function ProjectSettingsDialog({
       const uploadUrl = await generateUploadUrl({ projectId: project._id });
       const response = await fetch(uploadUrl, {
         method: "POST",
-        headers: { "Content-Type": file.type },
+        headers: { "Content-Type": iconMimeType(file) },
         body: file,
       });
       if (!response.ok) {
