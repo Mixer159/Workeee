@@ -2,6 +2,7 @@ import type { Doc, Id } from "../_generated/dataModel";
 import type { MutationCtx, QueryCtx } from "../_generated/server";
 import { getProjectAccess, requireProjectAccess, type ProjectAccess } from "./access";
 import { deleteFile, listTaskFiles } from "./files";
+import { deleteTaskNotifications } from "./notifications";
 
 type Ctx = QueryCtx | MutationCtx;
 
@@ -58,9 +59,11 @@ export async function touchTask(
 }
 
 /**
- * Everything that hangs off a task: its body, its files (blobs included) and its
- * comments. A deleted task must not leave a blob nobody can reach — there is no
- * other path to a file than the task it belongs to.
+ * Everything that hangs off a task: its body, its files (blobs included), its
+ * comments and any notification still queued about it. A deleted task must not
+ * leave a blob nobody can reach — there is no other path to a file than the task
+ * it belongs to — and it must not leave an e-mail on its way out about a task
+ * that will not exist by the time it lands.
  *
  * Returns how many documents went with it, which is what the organization purge
  * (`convex/organizationPurge.ts`) measures its batch against — a task carrying
@@ -86,5 +89,6 @@ export async function deleteTaskChildren(
     ...files.map((file) => deleteFile(ctx, file)),
     ...comments.map((comment) => ctx.db.delete(comment._id)),
   ]);
-  return content.length + files.length + comments.length;
+  const notifications = await deleteTaskNotifications(ctx, taskId);
+  return content.length + files.length + comments.length + notifications;
 }

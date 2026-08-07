@@ -81,6 +81,20 @@ export const fileContexts = v.union(
   v.literal("comment"),
 );
 
+/**
+ * Why somebody is being notified about a task.
+ *
+ * - `task_created`  — it was added to a project they can open.
+ * - `task_assigned` — they were made its `řešitel`.
+ *
+ * The client never supplies one of these: both are written by the server from
+ * inside the mutation that caused them.
+ */
+export const notificationKinds = v.union(
+  v.literal("task_created"),
+  v.literal("task_assigned"),
+);
+
 /** Audited actions. The client never supplies one of these directly. */
 export const activityTypes = v.union(
   v.literal("organization_created"),
@@ -291,4 +305,55 @@ export default defineSchema({
     targetId: v.optional(v.string()),
     meta: v.optional(v.any()),
   }).index("by_org", ["organizationId"]),
+
+  /**
+   * The per-user notification switch.
+   *
+   * **A missing row means on.** That is what makes "on by default" free: no
+   * backfill, and an account created tomorrow is already subscribed. Only
+   * turning it off writes anything.
+   */
+  notificationSettings: defineTable({
+    userId: v.id("users"),
+    taskEmails: v.boolean(),
+  }).index("by_user", ["userId"]),
+
+  /**
+   * One task waiting to go out to one person — the queue the digest is built
+   * from. See `convex/lib/notifications.ts`.
+   *
+   * Nothing here is denormalized on purpose. The title and the project name are
+   * read live when the batch is flushed, so a task renamed a minute after it was
+   * quick-added arrives under its real name, and a task deleted inside the
+   * window drops out of the e-mail instead of linking to nothing.
+   */
+  notificationEvents: defineTable({
+    // The recipient, never the actor.
+    userId: v.id("users"),
+    organizationId: v.id("organizations"),
+    projectId: v.id("projects"),
+    taskId: v.id("tasks"),
+    kind: notificationKinds,
+    actorId: v.id("users"),
+  })
+    // Collecting one person's digest.
+    .index("by_user", ["userId"])
+    // Dropping pending events when the task itself is deleted, and finding the
+    // row to upgrade when a task is created and then assigned inside one window.
+    .index("by_task", ["taskId"]),
+
+  /**
+   * The open batching window of one person. Its existence is the whole point:
+   * it is what stops the eighth task of a burst from scheduling an eighth
+   * e-mail. `scheduledId` is the flush this window currently owns, so a later
+   * event can cancel it and push the send further out.
+   */
+  notificationBatches: defineTable({
+    userId: v.id("users"),
+    scheduledId: v.id("_scheduled_functions"),
+    /** When the window opened — the anchor the hard cap is measured from. */
+    firstEventAt: v.number(),
+    /** When the flush is currently due. */
+    flushAt: v.number(),
+  }).index("by_user", ["userId"]),
 });

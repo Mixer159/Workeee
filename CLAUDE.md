@@ -88,7 +88,13 @@ Convex deployment env (`pnpm exec convex env list`):
 
 - `BETTER_AUTH_SECRET` — generated with `openssl rand -base64 32`
 - `SITE_URL` — `http://localhost:3000` in dev. **Must equal the origin the app is
-  served from**, otherwise Better Auth answers `403 INVALID_ORIGIN`.
+  served from**, otherwise Better Auth answers `403 INVALID_ORIGIN`. It is also
+  the origin the links inside a notification e-mail are built from.
+- `BREVO_API_KEY` / `BREVO_SENDER_EMAIL` — transactional e-mail. **Optional:
+  without them the app behaves exactly as before and simply sends nothing** (see
+  **Upozornění**), which is what keeps the dev deployment and `vitest` quiet by
+  default. Nothing Brevo-related belongs on Vercel: the send happens inside a
+  Convex action, so the browser never sees these.
 
 Production is separate from development:
 
@@ -126,6 +132,7 @@ convex/
   taskContent.ts         # get / save — the BlockNote document of a task
   files.ts               # generateUploadUrl / register / listByTask / remove
   comments.ts            # listByTask / create / update / remove
+  notifications.ts       # settings / setTaskEmails / claim / flush
   crons.ts               # scheduled jobs — one entry per job
   fileReaper.ts          # internal: delete blobs nothing points at any more
   migrations.ts          # internal one-off backfills (`pnpm exec convex run`)
@@ -135,13 +142,19 @@ convex/
   taskDetail.test.ts     # security + logic tests for body, files, comments
   fileReaper.test.ts     # both reaper branches, the grace period, the batch cap
   svg.test.ts            # the icon SVG gate: what it accepts, and the attacks
+  notifications.test.ts  # who is queued, the window, the checks at send time
+  notificationEmail.test.ts  # the subject, the plurals, the HTML escaping
   lib/auth.ts            # getAuthUserId / getAuthUser / getUserByAuthId
   lib/access.ts          # the permission matrix — org + project access
   lib/activity.ts        # logActivity (audit trail)
+  lib/brevo.ts           # the only network call in the app
   lib/commentBody.ts     # the comment segment codec (shared with the client)
   lib/files.ts           # blob validation, caps, deletion
   lib/invites.ts         # expiry presets, code generation, status
+  lib/notificationEmail.ts # buildTaskDigest — subject + HTML + text, pure
+  lib/notifications.ts   # the queue, the sliding window, claimDigest
   lib/ordering.ts        # fractional order helpers for board columns
+  lib/plural.ts          # Czech 1 / 2–4 / 5+ (shared with the client)
   lib/projectMembers.ts  # who can open a project (assignees + mentions)
   lib/storage.ts         # global one-blob/one-owner invariant + safe deletion
   lib/svg.ts             # the icon SVG allowlist + `data:` URI (never a blob)
@@ -164,6 +177,7 @@ src/
     (dashboard)/projekt/[id]            # project board + task drawer (?ukol=<id>)
     (dashboard)/projekt/[id]/ukol/[taskId]  # redirect, keeps older links alive
     (dashboard)/nastaveni/organizace    # organization settings, managers only
+    (dashboard)/nastaveni/upozorneni    # personal notification switch, everybody
     join/[code]/         # PUBLIC invite landing page + its own opengraph-image
     api/auth/[...all]/   # proxy into the Convex deployment
   components/
@@ -174,6 +188,7 @@ src/
     join/                # join-screen
     layout/              # app-shell, sidebar-content, organization-switcher,
                          # projects-nav, user-menu, wordmark, empty-state
+    notifications/       # notification-settings-form
     organizations/       # onboarding, create/join forms + dialogs, members-table,
                          # delete-organization-dialog
     projects/            # project-screen, project-icon, project-icon-picker,
@@ -317,11 +332,15 @@ files                taskId, projectId, organizationId, storageId, fileName,
 comments             taskId, projectId, organizationId, authorId, body,
                      attachmentIds?, edited?                          by_task
 activityLogs         organizationId, actorId, type, targetId?, meta?    by_org
+notificationSettings userId, taskEmails      — a missing row means ON  by_user
+notificationEvents   userId, organizationId, projectId, taskId, kind,
+                     actorId                              by_user · by_task
+notificationBatches  userId, scheduledId, firstEventAt, flushAt        by_user
 ```
 
 Shared validators live in `convex/schema.ts`: `organizationRoles`,
 `memberAccessLevels`, `inviteExpiryPresets`, `taskStatusColors`,
-`taskStatusKinds`, `fileContexts`, `activityTypes`.
+`taskStatusKinds`, `fileContexts`, `activityTypes`, `notificationKinds`.
 
 ### Invite lifecycle
 
@@ -846,6 +865,104 @@ the oldest), so a deployment with more than `limit` body images would starve the
 tail. At this app's scale the cap is orders of magnitude above a day's uploads;
 raise `limit` before that stops being true.
 
+## Upozornění (Phase 11)
+
+One e-mail per person per burst, never one per task. Two things trigger it —
+a task **assigned** to you, and a task **created** in a project you can open —
+and both go into a queue rather than out of the mutation that caused them.
+
+### Why Brevo, and not the obvious choice
+
+Convex ships an official Resend component, and it would have been the better
+code: queueing, retries and idempotency for free. It was rejected for one
+concrete reason. **Resend refuses to send anywhere but the account owner's own
+address until a domain is verified**, and this app is served from
+`workeee.vercel.app` — a `*.vercel.app` host cannot be given DNS records, so
+that domain can never be verified. A notification nobody but the owner receives
+is not a notification.
+
+Brevo verifies a **single sender address** by e-mailing it a link, so it needs
+no domain at all: 300 messages a day, free forever. The price is written down
+honestly because it is real: the free plan appends a "Sent with Brevo" line,
+and a `From` on a webmail domain fails DMARC alignment (Brevo signs with its
+own domain), so a share of it lands in spam. Both disappear by authenticating a
+real domain in Brevo and changing `BREVO_SENDER_EMAIL` — one environment
+variable, no code. `convex/lib/brevo.ts` is the only module in the app that
+touches the network, which is what keeps that swap a one-file job.
+
+### The window
+
+`convex/lib/notifications.ts`. The first event for a person opens a window — one
+scheduled flush, recorded in `notificationBatches` — and every further event of
+that burst rides along instead of scheduling its own. **The window slides**:
+each new task pushes the send to `now + QUIET_MS` (2 min), so the digest goes
+out once the person has stopped typing rather than at a fixed time that happens
+to cut their burst in half. `MAX_WAIT_MS` (10 min) is the hard cap measured from
+`firstEventAt`, and it is what stops somebody who spends the whole morning on
+the board from postponing the digest forever.
+
+- **Nothing is denormalized into the queue.** Titles and project names are read
+  live at flush, so a task renamed a minute after it was quick-added arrives
+  under its real name, and one deleted inside the window drops out instead of
+  linking to nothing.
+- **Everything is re-checked at flush.** `claimDigest` re-runs
+  `getProjectAccess` per project and re-reads `notificationSettings` — between
+  the enqueue and the send a member can be removed from the organization or
+  turn the switch off, and an e-mail is the one thing in this app that cannot
+  be un-shown.
+- **Claim first, send second.** The rows are deleted in the transaction *before*
+  the mail leaves, so a flush that dies mid-send loses a notification rather
+  than delivering it twice. For e-mail that is the right way round, and Brevo
+  has no idempotency key to make the other order safe.
+- A task created and then assigned inside one window is **one line**, the
+  stronger of the two (`task_assigned`), not two.
+- Queued events die with their task: `deleteTaskChildren` sweeps them, so both
+  `tasks.remove` and the organization purge already handle it.
+
+### The switch
+
+`notificationSettings`, per user and global (not per organization). **A missing
+row means on** — which is what makes "on by default" free: no backfill, and an
+account created tomorrow is already subscribed. Only turning it off writes
+anything. `notifications.settings` and `setTaskEmails` take **no `userId`**: a
+preference is not somebody else's to read or write.
+
+### The digest
+
+`buildTaskDigest` (`convex/lib/notificationEmail.ts`) is a **pure function** of
+the digest and the origin — no database, no clock, no environment — which is
+what lets `convex/notificationEmail.test.ts` cover the wording exhaustively.
+
+| Situation | Subject |
+|---|---|
+| 1 task | `Nový úkol: Opravit fakturaci` |
+| several, one project | `8 nových úkolů v projektu Web` |
+| several, several projects | `8 nových úkolů` |
+
+Across several projects it deliberately names none of them: "ve 3 projektech"
+versus "v 5 projektech" is a preposition that changes with the *spoken* numeral,
+and a subject line is not worth that trap. The body is one column of inline
+styles and no images — mail clients strip `<style>` blocks and `class`
+attributes, and a list of links has nothing to gain from fighting them. Task
+titles are escaped on the way in.
+
+### Testing it without sending anything
+
+`sendTransactionalEmail` returns early when `BREVO_API_KEY` /
+`BREVO_SENDER_EMAIL` are unset, so an unconfigured deployment — and `vitest` —
+queue and flush normally and simply post nothing. That is what lets
+`convex/notifications.test.ts` run the real flush action end to end. Timers are
+faked throughout: `scheduleFlush` uses `scheduler.runAt`, so with a real clock
+"did the second task schedule a second e-mail?" is a race, and `vi.setSystemTime`
+moves `Date.now()` forward **without** firing anything, which is exactly what a
+test of the window needs.
+
+To skip the two-minute wait by hand:
+
+```bash
+pnpm exec convex run notifications:flush '{"userId": "..."}'
+```
+
 ## Routes
 
 | Route | Access | What it is |
@@ -854,6 +971,7 @@ raise `limit` before that stops being true.
 | `/projekt/[id]` | project members | Project header + settings dialog for managers + the Kanban board. `?ukol=<taskId>` opens that task in the drawer on the right: title, status, assignee, meta, block-editor description, Přílohy, Komentáře |
 | `/projekt/[id]/ukol/[taskId]` | project members | Redirect to `/projekt/[id]?ukol=<taskId>` — the detail is a drawer now |
 | `/nastaveni/organizace` | org managers | Rename, members table, organization invites; the owner also gets the delete card |
+| `/nastaveni/upozorneni` | authenticated | One switch: e-mail digests of new tasks. Personal, so no manager guard — reached from the user menu |
 | `/join/[code]` | **public** | Invite summary; unauthenticated visitors go to `/registrace?invite=<code>` or `/prihlaseni?invite=<code>` and come back here to accept |
 | `/prihlaseni`, `/registrace` | public | Auth; `?invite=<code>` redirects back to the join page afterwards |
 
@@ -968,7 +1086,7 @@ and re-shared by the chat, not by the person who was invited, and
     `aria-describedby={undefined}` to `DialogContent` — that is how Radix is
     told the omission is deliberate.
   - One concept, one Czech word, everywhere: **pozvánka · organizace · projekt ·
-    úkol · stav · člen · řešitel · příloha · komentář**. A create action is
+    úkol · stav · člen · řešitel · příloha · komentář · upozornění**. A create action is
     "Nová organizace" / "Nový projekt" in the menu that opens it *and* in the
     dialog title, and the dialog's submit button is the bare verb ("Vytvořit").
   - A toggle's label names what the click will do, not what is on now
@@ -977,7 +1095,10 @@ and re-shared by the chat, not by the person who was invited, and
   the business vocabulary and are therefore Czech (`/prihlaseni`, `/registrace`).
 - Auth error copy lives in one place: `src/lib/auth-errors.ts`.
 - Czech plurals need 1 / 2–4 / 5+ forms — `plural(count, one, few, many)` in
-  `src/lib/format.ts` is the one helper; never write `${n} položek`.
+  **`convex/lib/plural.ts`** is the one helper; never write `${n} položek`. It
+  sits on the Convex side because the server builds e-mail subjects too, and
+  `src/lib/format.ts` imports it from there — the same direction
+  `convex/lib/commentBody.ts` is shared in.
 - Dates, file sizes and relative times all go through `src/lib/format.ts`
   (`formatDate`, `formatDateTime`, `formatExpiry`, `formatFileSize`,
   `formatRelativeTime`). No `date-fns` — the repo formats with `Intl` and takes
@@ -1076,8 +1197,15 @@ Day-one decisions:
   the project document and served as a `data:` URI, so the format is supported
   without ever creating the thing that made it dangerous, a URL pointing at an
   SVG. See **Project icons**.
-- **Later.** List view, due dates, filters in the URL, notifications, activity
-  timeline, audit log surface.
+- **Phase 11 (done).** Upozornění: a task assigned to you, or added to a project
+  you can open, now reaches you by e-mail — **batched**, so eight tasks typed in
+  one sitting arrive as one message with the count in its subject. A sliding
+  2-minute window with a 10-minute cap, everything re-checked at send time, one
+  personal switch that is on by default, and Brevo instead of Resend because a
+  `*.vercel.app` host has no DNS to verify a domain with. No new dependency:
+  the whole integration is one `fetch`.
+- **Later.** List view, due dates, filters in the URL, in-app notification bell,
+  comment and mention notifications, activity timeline, audit log surface.
 
 ## Continual learning
 
@@ -1293,6 +1421,42 @@ Day-one decisions:
   `startsWith("<svg")` ran against `"\n<svg …"` — found by running the app's own
   `src/app/icon.svg` through it, which is the only sample in the repo written by
   a person rather than by the test.
+- **A transactional e-mail provider's free tier is not the number on the pricing
+  page.** Resend advertises 3 000 messages a month, and every one of them goes
+  to the account owner until a domain is verified — which a `*.vercel.app`
+  deployment can never do, because there is no DNS to put the records in. The
+  question to ask a provider first is not "how many" but "**to whom, today,
+  with what I actually own**". Brevo verifies a single address by e-mailing it a
+  link, which is the only shape that fits a project with no domain.
+- **A batching window has to slide, and it has to have a cap.** A fixed window
+  from the first event is one line simpler and splits a burst in half whenever
+  the burst starts near the end of it. A purely sliding one never fires for
+  somebody who keeps working. Both constants — the quiet period and the hard cap
+  measured from the first event — are the feature; either alone is a bug.
+- **Claim before you send, not after.** A queue drained inside the transaction
+  loses a message when the sender dies; drained after, it sends the message
+  twice when the sender dies *after* delivering. For e-mail the first failure is
+  the acceptable one, and no provider on a free tier gives you an idempotency
+  key to make the other order safe.
+- Anything queued for later has to **re-authorize when it runs**, not when it is
+  queued. Between the enqueue and the flush a person can be removed from the
+  organization or turn the notification off — `claimDigest` therefore re-runs
+  `getProjectAccess` and re-reads the switch, and an e-mail is precisely the
+  thing that cannot be taken back once it is wrong.
+- **An unconfigured integration should be silent, not broken.** `sendTransactionalEmail`
+  returning early with no API key is what makes the dev deployment safe, makes
+  `vitest` able to run the real scheduled action end to end, and makes shipping
+  the feature before the credentials exist a non-event.
+- `vi.useFakeTimers()` plus **`vi.setSystemTime`** is the pair a scheduling test
+  needs: `advanceTimersByTime` fires the timers, which is the opposite of what
+  "did the second task reuse the first task's window?" is asking. Move the clock,
+  assert on the row, never let the job run.
+- **pnpm 10.33 stopped reading the `pnpm` field in `package.json`.** The
+  `overrides` that pin the patched PostCSS and Sharp were silently ignored and
+  survived only because the lockfile still recorded the old resolution — inertia,
+  not a guarantee. They live in `pnpm-workspace.yaml` now. The tell was a `[WARN]`
+  on every single pnpm command, which is exactly the kind of line that stops
+  being read after the tenth time.
 - **A file input's `accept` needs extensions, not only MIME types.** `File.type`
   comes from the operating system, and for `.ico` the three browsers disagree
   (`image/x-icon`, `image/vnd.microsoft.icon`, or nothing at all). A list of

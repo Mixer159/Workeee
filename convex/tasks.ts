@@ -9,6 +9,7 @@ import {
 import { canManageProject, getProjectAccess, requireProjectAccess } from "./lib/access";
 import { logActivity } from "./lib/activity";
 import { getAuthUserId } from "./lib/auth";
+import { notifyTaskAssigned, notifyTaskCreated } from "./lib/notifications";
 import { appendOrder, byOrder, orderBetween, renumber } from "./lib/ordering";
 import { deleteTaskChildren, requireTaskAccess } from "./lib/tasks";
 import { listProjectStatuses } from "./lib/taskStatuses";
@@ -152,6 +153,13 @@ export const create = mutation({
       meta: { title, projectId: args.projectId },
     });
 
+    // Queued, never sent from here: eight tasks typed in a row have to arrive
+    // as one e-mail. See `convex/lib/notifications.ts`.
+    const task = await ctx.db.get(taskId);
+    if (task) {
+      await notifyTaskCreated(ctx, task, userId);
+    }
+
     return { taskId };
   },
 });
@@ -202,6 +210,12 @@ export const setAssignee = mutation({
       assigneeId: args.assigneeId,
       updatedAt: Date.now(),
     });
+
+    // Only a real handover is worth an e-mail: re-picking the same person, or
+    // taking the task yourself, tells nobody anything.
+    if (args.assigneeId && args.assigneeId !== task.assigneeId) {
+      await notifyTaskAssigned(ctx, task, userId, args.assigneeId);
+    }
   },
 });
 

@@ -1,3 +1,5 @@
+import { plural } from "@convex/lib/plural";
+
 const dateTimeFormat = new Intl.DateTimeFormat("cs-CZ", {
   day: "numeric",
   month: "numeric",
@@ -75,24 +77,4 @@ export function formatRelativeTime(timestamp: number, now: number): string {
     return `před ${days} ${plural(days, "dnem", "dny", "dny")}`;
   }
   return formatDateTime(timestamp);
-}
-
-/**
- * Czech needs three forms: 1 / 2–4 / 5+. Every count rendered next to a noun
- * goes through here rather than through `${n} položek`.
- */
-export function plural(
-  count: number,
-  one: string,
-  few: string,
-  many: string,
-): string {
-  const absolute = Math.abs(count);
-  if (absolute === 1) {
-    return one;
-  }
-  if (absolute >= 2 && absolute <= 4) {
-    return few;
-  }
-  return many;
 }

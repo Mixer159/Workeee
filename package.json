@@ -6,12 +6,6 @@
   "engines": {
     "node": ">=20.9.0 <25"
   },
-  "pnpm": {
-    "overrides": {
-      "next>postcss": "8.5.25",
-      "next>sharp": "0.35.3"
-    }
-  },
   "scripts": {
     "dev": "next dev",
     "dev:convex": "convex dev",

@@ -1,3 +1,16 @@
 ignoredBuiltDependencies:
   - sharp
   - unrs-resolver
+
+# Next 16.2.12 still resolves vulnerable transitive PostCSS and Sharp releases.
+# These two lines keep Next on its current stable version while forcing the
+# patched ones, and `pnpm audit --prod` is what checks they are still needed.
+#
+# They live here rather than under `pnpm.overrides` in `package.json` because
+# **pnpm 10.33 stopped reading that field** — it warns on every command and
+# ignores the keys. The pins survived only because the lockfile still recorded
+# the old resolution, which is not a guarantee, just inertia: the next install
+# that re-resolved anything would have quietly dropped them.
+overrides:
+  next>postcss: "8.5.25"
+  next>sharp: "0.35.3"
