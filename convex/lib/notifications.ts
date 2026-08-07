@@ -2,6 +2,7 @@ import { internal } from "../_generated/api";
 import type { Doc, Id } from "../_generated/dataModel";
 import type { MutationCtx, QueryCtx } from "../_generated/server";
 import { getProjectAccess } from "./access";
+import { commentBodyText, parseCommentBody } from "./commentBody";
 import { listProjectMemberIds } from "./projectMembers";
 
 /**
@@ -39,13 +40,51 @@ export const MAX_WAIT_MS = 10 * 60 * 1000;
  */
 export const MAX_EVENTS_PER_DIGEST = 100;
 
-export type DigestItem = {
+/** Longest quoted piece of a comment. A notification is a nudge, not the thread. */
+export const MAX_PREVIEW_LENGTH = 140;
+
+export type NotificationKind = Doc<"notificationEvents">["kind"];
+
+/**
+ * Which of the two queues a kind belongs to. One row per person per task per
+ * category, so a comment never overwrites the task it was written under.
+ */
+export type NotificationCategory = "task" | "comment";
+
+export function categoryOf(kind: NotificationKind): NotificationCategory {
+  return kind === "task_created" || kind === "task_assigned"
+    ? "task"
+    : "comment";
+}
+
+/** Inside a category, the higher rank wins and keeps its own detail. */
+function rank(kind: NotificationKind): number {
+  return kind === "task_assigned" || kind === "comment_mention" ? 1 : 0;
+}
+
+export type DigestTaskItem = {
+  type: "task";
   taskId: Id<"tasks">;
   projectId: Id<"projects">;
   title: string;
-  kind: Doc<"notificationEvents">["kind"];
+  kind: "task_created" | "task_assigned";
   actorName: string;
 };
+
+export type DigestCommentItem = {
+  type: "comment";
+  taskId: Id<"tasks">;
+  projectId: Id<"projects">;
+  title: string;
+  kind: "comment_added" | "comment_mention";
+  actorName: string;
+  /** How many comments this one line stands for. */
+  count: number;
+  /** The quoted text, already trimmed. Empty when the comment is gone. */
+  preview: string;
+};
+
+export type DigestItem = DigestTaskItem | DigestCommentItem;
 
 export type DigestProject = {
   projectId: Id<"projects">;
@@ -57,7 +96,10 @@ export type Digest = {
   email: string;
   name: string;
   projects: DigestProject[];
+  /** Items, not events — ten comments on one task are one item. */
   total: number;
+  taskCount: number;
+  commentCount: number;
 };
 
 /**
@@ -102,15 +144,56 @@ export async function notifyTaskAssigned(
   await enqueue(ctx, [assigneeId], task, actorId, "task_assigned");
 }
 
+/**
+ * A comment under a task.
+ *
+ * Deliberately **not** everybody who can see the project: comments outnumber
+ * tasks by an order of magnitude, and a lively thread under one task would
+ * otherwise mail the whole team all afternoon. Two people hear about it —
+ * whoever the comment `@`-mentions, and the task's řešitel, because it is
+ * their task being talked about. Anyone else is pulled in with a mention,
+ * which is what mentions are for.
+ */
+export async function notifyComment(
+  ctx: MutationCtx,
+  task: Doc<"tasks">,
+  commentId: Id<"comments">,
+  mentionedIds: Id<"users">[],
+  actorId: Id<"users">,
+): Promise<void> {
+  const mentioned = new Set(mentionedIds);
+  await enqueue(ctx, [...mentioned], task, actorId, "comment_mention", commentId);
+
+  // The řešitel hears about it too — unless they were mentioned, in which case
+  // they already have the stronger of the two.
+  if (task.assigneeId && !mentioned.has(task.assigneeId)) {
+    await enqueue(
+      ctx,
+      [task.assigneeId],
+      task,
+      actorId,
+      "comment_added",
+      commentId,
+    );
+  }
+}
+
 async function enqueue(
   ctx: MutationCtx,
   recipients: Id<"users">[],
   task: Doc<"tasks">,
   actorId: Id<"users">,
-  kind: Doc<"notificationEvents">["kind"],
+  kind: NotificationKind,
+  commentId?: Id<"comments">,
 ): Promise<void> {
+  if (recipients.length === 0) {
+    return;
+  }
+  const category = categoryOf(kind);
+
   // Everything already waiting for this task, so a task that is created and
-  // then assigned inside one window produces one line in the e-mail, not two.
+  // then assigned inside one window produces one line in the e-mail, not two —
+  // and so does a task somebody wrote under ten times.
   const pending = await ctx.db
     .query("notificationEvents")
     .withIndex("by_task", (q) => q.eq("taskId", task._id))
@@ -124,13 +207,12 @@ async function enqueue(
       continue;
     }
 
-    const existing = pending.find((event) => event.userId === userId);
+    const existing = pending.find(
+      (event) =>
+        event.userId === userId && categoryOf(event.kind) === category,
+    );
     if (existing) {
-      // "Assigned to you" is the stronger of the two — it survives, and the
-      // window is nudged so the digest still waits for whatever comes next.
-      if (kind === "task_assigned" && existing.kind !== kind) {
-        await ctx.db.patch(existing._id, { kind, actorId });
-      }
+      await ctx.db.patch(existing._id, mergeInto(existing, kind, actorId, commentId));
       await scheduleFlush(ctx, userId);
       continue;
     }
@@ -142,9 +224,40 @@ async function enqueue(
       taskId: task._id,
       kind,
       actorId,
+      commentId,
+      count: category === "comment" ? 1 : undefined,
     });
     await scheduleFlush(ctx, userId);
   }
+}
+
+/**
+ * Fold a new event into the one already waiting.
+ *
+ * The count always grows — ten replies are ten replies. What is quoted only
+ * moves when the new event is at least as strong: being mentioned and then
+ * buried under unrelated chatter should still show the sentence that named
+ * you, not the last thing anybody happened to type.
+ */
+function mergeInto(
+  existing: Doc<"notificationEvents">,
+  kind: NotificationKind,
+  actorId: Id<"users">,
+  commentId?: Id<"comments">,
+): Partial<Doc<"notificationEvents">> {
+  const patch: Partial<Doc<"notificationEvents">> = {};
+
+  if (categoryOf(kind) === "comment") {
+    patch.count = (existing.count ?? 1) + 1;
+  }
+  if (rank(kind) >= rank(existing.kind)) {
+    patch.kind = kind;
+    patch.actorId = actorId;
+    if (commentId) {
+      patch.commentId = commentId;
+    }
+  }
+  return patch;
 }
 
 /**
@@ -270,13 +383,41 @@ export async function claimDigest(
       const actor = await ctx.db.get(event.actorId);
       actors.set(event.actorId, actor?.name ?? "Někdo");
     }
+    const actorName = actors.get(event.actorId)!;
 
-    const item: DigestItem = {
+    if (categoryOf(event.kind) === "task") {
+      const item: DigestTaskItem = {
+        type: "task",
+        taskId: task._id,
+        projectId: event.projectId,
+        title: task.title,
+        kind: event.kind as DigestTaskItem["kind"],
+        actorName,
+      };
+      project.items.push(item);
+      items.push(item);
+      continue;
+    }
+
+    const count = event.count ?? 1;
+    const preview = event.commentId
+      ? await commentPreview(ctx, event.commentId)
+      : null;
+    if (preview === null && count === 1) {
+      // The only comment this line stood for has been deleted since. There is
+      // nothing left to tell them about.
+      continue;
+    }
+
+    const item: DigestCommentItem = {
+      type: "comment",
       taskId: task._id,
       projectId: event.projectId,
       title: task.title,
-      kind: event.kind,
-      actorName: actors.get(event.actorId)!,
+      kind: event.kind as DigestCommentItem["kind"],
+      actorName,
+      count,
+      preview: preview ?? "",
     };
     project.items.push(item);
     items.push(item);
@@ -289,12 +430,51 @@ export async function claimDigest(
   return {
     email: user.email,
     name: user.name,
-    projects: [...projects.values()].filter(
-      (project): project is DigestProject =>
-        project !== null && project.items.length > 0,
-    ),
+    projects: [...projects.values()]
+      .filter(
+        (project): project is DigestProject =>
+          project !== null && project.items.length > 0,
+      )
+      // Tasks before comments inside a project: the thing that appeared reads
+      // ahead of the talk about it.
+      .map((project) => ({
+        ...project,
+        items: [
+          ...project.items.filter((item) => item.type === "task"),
+          ...project.items.filter((item) => item.type === "comment"),
+        ],
+      })),
     total: items.length,
+    taskCount: items.filter((item) => item.type === "task").length,
+    commentCount: items.filter((item) => item.type === "comment").length,
   };
+}
+
+/**
+ * The quoted line under a comment notification, or `null` when the comment has
+ * been deleted since it was queued.
+ *
+ * The body is a segment array, so this goes through the shared codec rather
+ * than through the raw JSON — a mention reads as `@Jméno`, which is how it was
+ * written.
+ */
+async function commentPreview(
+  ctx: MutationCtx,
+  commentId: Id<"comments">,
+): Promise<string | null> {
+  const comment = await ctx.db.get(commentId);
+  if (!comment) {
+    return null;
+  }
+  const segments = parseCommentBody(comment.body);
+  if (!segments) {
+    return "";
+  }
+  const text = commentBodyText(segments).replace(/\s+/g, " ").trim();
+  if (text.length <= MAX_PREVIEW_LENGTH) {
+    return text;
+  }
+  return `${text.slice(0, MAX_PREVIEW_LENGTH - 1).trimEnd()}…`;
 }
 
 /**

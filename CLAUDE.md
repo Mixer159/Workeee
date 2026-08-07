@@ -333,8 +333,9 @@ comments             taskId, projectId, organizationId, authorId, body,
                      attachmentIds?, edited?                          by_task
 activityLogs         organizationId, actorId, type, targetId?, meta?    by_org
 notificationSettings userId, taskEmails      — a missing row means ON  by_user
-notificationEvents   userId, organizationId, projectId, taskId, kind,
-                     actorId                              by_user · by_task
+notificationEvents   userId, organizationId, projectId, taskId, kind, actorId,
+                     commentId?, count?   — the last two on comment rows only
+                                                          by_user · by_task
 notificationBatches  userId, scheduledId, firstEventAt, flushAt        by_user
 ```
 
@@ -806,8 +807,10 @@ comments.remove ({ commentId })                                          // auth
 Server-side rules: every mentioned id must be in `listProjectMemberIds` (the same
 set `projects.assignableMembers` renders); every attachment must be a `files` row
 on this task, uploaded by the author, `context: "comment"`, and not already
-claimed. All three mutations bump `tasks.updatedAt`. Mentions are **visual
-tagging only in v1** — nothing is notified.
+claimed. All three mutations bump `tasks.updatedAt`. A mention is **what pulls
+somebody into a thread**: `comments.create` queues a notification for everyone
+it names and for the task's řešitel, and for nobody else — see **Upozornění**.
+`update` and `remove` queue nothing, because a typo fix is not news.
 
 The composer (`src/components/tasks/mention-textarea.tsx`) edits a plain string:
 a mention is written as `@Jméno Příjmení` and the draft carries the user id that
@@ -867,9 +870,37 @@ raise `limit` before that stops being true.
 
 ## Upozornění (Phase 11)
 
-One e-mail per person per burst, never one per task. Two things trigger it —
-a task **assigned** to you, and a task **created** in a project you can open —
-and both go into a queue rather than out of the mutation that caused them.
+One e-mail per person per burst, never one per event. Four things trigger it,
+and all four go into a queue rather than out of the mutation that caused them:
+
+| Kind | Who hears about it |
+|---|---|
+| `task_assigned` | the new řešitel |
+| `task_created` | everyone who can open the project |
+| `comment_mention` | everyone the comment `@`-names |
+| `comment_added` | the task's řešitel |
+
+**Comments are deliberately narrower than tasks.** A new task is rare and
+concerns the whole project; comments outnumber tasks by an order of magnitude,
+and mailing everybody about every reply would make one lively thread shout at
+the entire team — and on a 300-a-day free tier, that is also a real ceiling. So
+a comment reaches the two people it is actually about, and anyone else is pulled
+in with a mention. That is what mentions are *for*, and it is why
+`convex/lib/commentBody.ts` has stored them as real user ids from the start.
+
+### Two categories, one row each
+
+`categoryOf(kind)` splits the four kinds into `task` and `comment`, and the
+queue holds **at most one row per person per task per category**. The split is
+load-bearing: without it a comment written under a freshly created task would
+overwrite the notification about the task itself, and the person would never
+hear that the task exists.
+
+Inside a category the stronger kind wins — `task_assigned` over `task_created`,
+`comment_mention` over `comment_added` — and it keeps its own detail. Ten
+replies are one line carrying `count: 10`, and if the first of them mentioned
+you, that is still the sentence quoted in the e-mail: being named and then
+buried under unrelated chatter should not lose the sentence that named you.
 
 ### Why Brevo, and not the obvious choice
 
@@ -935,16 +966,28 @@ what lets `convex/notificationEmail.test.ts` cover the wording exhaustively.
 
 | Situation | Subject |
 |---|---|
-| 1 task | `Nový úkol: Opravit fakturaci` |
+| 1 item | `Nový úkol: Opravit fakturaci` · `Nový komentář: Opravit fakturaci` |
 | several, one project | `8 nových úkolů v projektu Web` |
+| tasks *and* comments | `1 nový úkol a 5 komentářů v projektu Web` |
 | several, several projects | `8 nových úkolů` |
 
-Across several projects it deliberately names none of them: "ve 3 projektech"
-versus "v 5 projektech" is a preposition that changes with the *spoken* numeral,
-and a subject line is not worth that trap. The body is one column of inline
-styles and no images — mail clients strip `<style>` blocks and `class`
-attributes, and a list of links has nothing to gain from fighting them. Task
-titles are escaped on the way in.
+Three pieces of Czech that are easy to get wrong and are pinned by tests:
+
+- Across several projects it deliberately names none of them. "ve 3 projektech"
+  versus "v 5 projektech" is a preposition that changes with the *spoken*
+  numeral, and a subject line is not worth that trap.
+- The adjective appears only on the **first** half of the conjunction:
+  "1 nový úkol a 5 komentářů", never "…a 5 nových komentářů".
+- Every label under a title is **verbless** — `Přiřazeno vám · Jana Nováková`,
+  not "Přiřadil vám Jana Nováková". Czech past tense is gendered, the app has no
+  idea of anybody's gender, and a name is not one. A label and a name joined by
+  a middot says the same thing and is correct for everybody.
+
+The body is one column of inline styles and no images — mail clients strip
+`<style>` blocks and `class` attributes, and a list of links has nothing to gain
+from fighting them. A quoted comment sits in a left-ruled block, capped at
+`MAX_PREVIEW_LENGTH` (140) and read through `commentBodyText` so a mention
+quotes as `@Jméno`. Titles and quotes are escaped on the way in.
 
 ### Testing it without sending anything
 
@@ -1204,6 +1247,13 @@ Day-one decisions:
   personal switch that is on by default, and Brevo instead of Resend because a
   `*.vercel.app` host has no DNS to verify a domain with. No new dependency:
   the whole integration is one `fetch`.
+- **Phase 12 (done).** Comments joined the same digest, on a much narrower
+  audience than tasks: whoever a comment `@`-names, plus the task's řešitel.
+  The queue grew a second category so a reply can no longer overwrite the task
+  it was written under, ten replies collapse into one line with a count, the
+  comment itself is quoted, and every label in the e-mail was rewritten
+  verbless because Czech past tense is gendered and the app does not know
+  anybody's gender.
 - **Later.** List view, due dates, filters in the URL, in-app notification bell,
   comment and mention notifications, activity timeline, audit log surface.
 
@@ -1428,6 +1478,22 @@ Day-one decisions:
   question to ask a provider first is not "how many" but "**to whom, today,
   with what I actually own**". Brevo verifies a single address by e-mailing it a
   link, which is the only shape that fits a project with no domain.
+- **A notification queue keyed by one entity needs a category, or the loud event
+  eats the quiet one.** Rows were "one per person per task", which was right
+  until comments arrived: a reply written under a freshly created task
+  overwrote the notification about the task existing, and the person learned
+  about the discussion but never about the work. `categoryOf(kind)` splits the
+  key; a stronger kind still wins, but only inside its own half.
+- **Czech past tense is gendered, and an app almost never knows the gender.**
+  "Přidal Jana Nováková" is wrong for half of any team, and a name is not a
+  gender — guessing from it is worse than not saying it. A verbless label and
+  the name joined by a middot (`Nový úkol · Jana Nováková`) carries the same
+  information and is right for everybody.
+- **Comment volume is not task volume.** Copying the "everyone who can see the
+  project" rule from tasks onto comments would have turned one lively thread
+  into a mailing list for the whole team — and on a 300-a-day free tier, into a
+  quota problem. Mentions already existed as real user ids; letting them decide
+  the audience was both the cheaper and the more respectful answer.
 - **A batching window has to slide, and it has to have a cap.** A fixed window
   from the first event is one line simpler and splits a burst in half whenever
   the burst starts near the end of it. A purely sliding one never fires for

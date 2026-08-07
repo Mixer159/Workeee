@@ -40,31 +40,49 @@ export function buildTaskDigest(
 
 /**
  * "Nový úkol: Opravit fakturaci" · "3 nové úkoly v projektu Web" ·
- * "8 nových úkolů".
+ * "2 nové úkoly a 3 komentáře" · "8 nových úkolů".
  *
  * The count is in the subject because that is what the person decides on
  * without opening anything. Across several projects it deliberately names none
  * of them: "ve 3 projektech" versus "v 5 projektech" is a preposition that
  * changes with the spoken numeral, and a subject line is not worth that trap.
+ *
+ * Note the adjective only appears on the first half of the conjunction —
+ * "1 nový úkol a 5 komentářů", never "1 nový úkol a 5 nových komentářů", which
+ * is how the language actually works.
  */
 export function buildSubject(digest: Digest): string {
-  const noun = plural(
-    digest.total,
-    "nový úkol",
-    "nové úkoly",
-    "nových úkolů",
-  );
+  const { taskCount, commentCount } = digest;
 
   if (digest.total === 1) {
     const only = digest.projects[0]?.items[0];
-    return only ? `Nový úkol: ${truncate(only.title, SUBJECT_TITLE_LIMIT)}` : noun;
+    if (only) {
+      const lead = only.type === "task" ? "Nový úkol" : "Nový komentář";
+      return `${lead}: ${truncate(only.title, SUBJECT_TITLE_LIMIT)}`;
+    }
   }
 
-  const count = `${digest.total} ${noun}`;
+  let count: string;
+  if (taskCount > 0 && commentCount > 0) {
+    count = `${tasks(taskCount)} a ${commentCount} ${plural(commentCount, "komentář", "komentáře", "komentářů")}`;
+  } else if (commentCount > 0) {
+    count = comments(commentCount);
+  } else {
+    count = tasks(taskCount);
+  }
+
   if (digest.projects.length === 1) {
     return `${count} v projektu ${digest.projects[0].projectName}`;
   }
   return count;
+}
+
+function tasks(count: number): string {
+  return `${count} ${plural(count, "nový úkol", "nové úkoly", "nových úkolů")}`;
+}
+
+function comments(count: number): string {
+  return `${count} ${plural(count, "nový komentář", "nové komentáře", "nových komentářů")}`;
 }
 
 function taskUrl(origin: string, item: DigestItem): string {
@@ -76,15 +94,14 @@ function settingsUrl(origin: string): string {
 }
 
 function heading(digest: Digest): string {
-  if (digest.total === 1) {
-    return "Máte nový úkol";
+  const { taskCount, commentCount } = digest;
+  if (taskCount > 0 && commentCount > 0) {
+    return `Máte ${tasks(taskCount)} a ${commentCount} ${plural(commentCount, "komentář", "komentáře", "komentářů")}`;
   }
-  return `Máte ${digest.total} ${plural(
-    digest.total,
-    "nový úkol",
-    "nové úkoly",
-    "nových úkolů",
-  )}`;
+  if (commentCount > 0) {
+    return `Máte ${comments(commentCount)}`;
+  }
+  return `Máte ${tasks(taskCount)}`;
 }
 
 function buildHtml(digest: Digest, origin: string): string {
@@ -94,15 +111,23 @@ function buildHtml(digest: Digest, origin: string): string {
       const hidden = project.items.length - shown.length;
 
       const rows = shown
-        .map(
-          (item) => `
+        .map((item) => {
+          // The quoted comment sits in a left-ruled block, the way a mail
+          // client renders a quote — it is somebody's words, not ours.
+          const quote =
+            item.type === "comment" && item.preview.length > 0
+              ? `<div style="border-left:2px solid #e4e4e7;color:#52525b;font-size:14px;line-height:1.5;margin-top:6px;padding-left:10px;">${escapeHtml(item.preview)}</div>`
+              : "";
+
+          return `
         <tr>
-          <td style="padding:0 0 10px;">
+          <td style="padding:0 0 12px;">
             <a href="${escapeHtml(taskUrl(origin, item))}" style="color:#4F46E5;font-size:15px;font-weight:500;text-decoration:none;">${escapeHtml(item.title)}</a>
             <div style="color:#71717a;font-size:13px;padding-top:2px;">${escapeHtml(subtitle(item))}</div>
+            ${quote}
           </td>
-        </tr>`,
-        )
+        </tr>`;
+        })
         .join("");
 
       const more =
@@ -158,6 +183,9 @@ function buildText(digest: Digest, origin: string): string {
     lines.push(`${project.projectName}:`);
     for (const item of shown) {
       lines.push(`- ${item.title} (${subtitle(item)})`);
+      if (item.type === "comment" && item.preview.length > 0) {
+        lines.push(`  „${item.preview}"`);
+      }
       lines.push(`  ${taskUrl(origin, item)}`);
     }
     if (hidden > 0) {
@@ -173,10 +201,32 @@ function buildText(digest: Digest, origin: string): string {
   return lines.join("\n");
 }
 
+/**
+ * The muted line under a title.
+ *
+ * Deliberately verbless: "Přidal Jana Nováková" is wrong for half the team and
+ * the app has no idea which half anybody is in — a name is not a gender. A
+ * label and a name separated by a middot says the same thing and stays correct
+ * for everybody.
+ */
 function subtitle(item: DigestItem): string {
-  return item.kind === "task_assigned"
-    ? `Přiřadil vám ${item.actorName}`
-    : `Přidal ${item.actorName}`;
+  const parts: string[] = [];
+
+  if (item.type === "task") {
+    parts.push(item.kind === "task_assigned" ? "Přiřazeno vám" : "Nový úkol");
+  } else {
+    parts.push(
+      item.kind === "comment_mention" ? "Zmínka v komentáři" : "Nový komentář",
+    );
+    if (item.count > 1) {
+      parts.push(
+        `${item.count} ${plural(item.count, "komentář", "komentáře", "komentářů")}`,
+      );
+    }
+  }
+
+  parts.push(item.actorName);
+  return parts.join(" · ");
 }
 
 function preheader(digest: Digest): string {

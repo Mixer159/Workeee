@@ -82,17 +82,27 @@ export const fileContexts = v.union(
 );
 
 /**
- * Why somebody is being notified about a task.
+ * Why somebody is being notified.
  *
- * - `task_created`  — it was added to a project they can open.
- * - `task_assigned` — they were made its `řešitel`.
+ * - `task_created`    — a task was added to a project they can open.
+ * - `task_assigned`   — they were made its `řešitel`.
+ * - `comment_added`   — somebody wrote under a task **they are the řešitel of**.
+ * - `comment_mention` — somebody `@`-mentioned them in a comment.
  *
- * The client never supplies one of these: both are written by the server from
- * inside the mutation that caused them.
+ * They fall into two **categories**, `task` and `comment`, and that split is
+ * load-bearing: the queue holds at most one row per person per task per
+ * category, and a stronger kind replaces a weaker one inside its own category
+ * only. Without it, a comment on a freshly created task would overwrite the
+ * notification about the task itself.
+ *
+ * The client never supplies one of these: all four are written by the server
+ * from inside the mutation that caused them.
  */
 export const notificationKinds = v.union(
   v.literal("task_created"),
   v.literal("task_assigned"),
+  v.literal("comment_added"),
+  v.literal("comment_mention"),
 );
 
 /** Audited actions. The client never supplies one of these directly. */
@@ -335,6 +345,18 @@ export default defineSchema({
     taskId: v.id("tasks"),
     kind: notificationKinds,
     actorId: v.id("users"),
+    /**
+     * Comment rows only: the comment worth quoting — the latest one, or the
+     * one that mentioned this person, since a mention outranks the chatter
+     * that followed it.
+     */
+    commentId: v.optional(v.id("comments")),
+    /**
+     * Comment rows only: how many comments have piled up on this task for this
+     * person inside the window, so ten replies read as "10 komentářů" on one
+     * line instead of ten lines.
+     */
+    count: v.optional(v.number()),
   })
     // Collecting one person's digest.
     .index("by_user", ["userId"])

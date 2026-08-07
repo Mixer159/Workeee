@@ -18,6 +18,7 @@ import {
   type CommentSegment,
 } from "./lib/commentBody";
 import { deleteFile, isImageMimeType } from "./lib/files";
+import { notifyComment } from "./lib/notifications";
 import { listProjectMemberIds } from "./lib/projectMembers";
 import { getTaskAccess, requireTaskAccess, touchTask } from "./lib/tasks";
 
@@ -113,6 +114,16 @@ export const create = mutation({
       attachments.map((file) => ctx.db.patch(file._id, { commentId })),
     );
     await touchTask(ctx, task._id);
+
+    // Queued, never sent from here — and only to the people it is actually
+    // about: whoever it mentions, plus the task's řešitel.
+    await notifyComment(
+      ctx,
+      task,
+      commentId,
+      mentionedUserIds(segments),
+      userId,
+    );
 
     return { commentId };
   },

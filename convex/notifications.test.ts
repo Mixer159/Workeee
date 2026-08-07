@@ -227,6 +227,295 @@ describe("who gets queued", () => {
   });
 });
 
+describe("comments", () => {
+  /** The composer's wire format: plain text, plus a real mention segment. */
+  function body(text: string, mention?: { userId: Id<"users">; name: string }) {
+    const segments: unknown[] = [{ type: "text", text }];
+    if (mention) {
+      segments.push({ type: "mention", ...mention });
+    }
+    return JSON.stringify(segments);
+  }
+
+  test("a mention reaches the person named, and nobody else", async () => {
+    const t = setup();
+    const { owner, organizationId, projectId, statusId } =
+      await createWorkspace(t);
+    const petr = await addFullMember(
+      t,
+      owner,
+      organizationId,
+      "Petr Svoboda",
+      "petr@example.com",
+    );
+    const eva = await addFullMember(
+      t,
+      owner,
+      organizationId,
+      "Eva Dvořáková",
+      "eva@example.com",
+    );
+
+    const taskId = await addTask(owner, projectId, statusId, "Opravit fakturaci");
+    await t.mutation(internal.notifications.claim, { userId: petr.userId });
+    await t.mutation(internal.notifications.claim, { userId: eva.userId });
+
+    await owner.as.mutation(api.comments.create, {
+      taskId,
+      body: body("Mrkni na to ", { userId: petr.userId, name: "Petr Svoboda" }),
+    });
+
+    const pending = await pendingFor(t, petr.userId);
+    expect(pending).toHaveLength(1);
+    expect(pending[0].kind).toBe("comment_mention");
+    // Eva can see the project, but the comment is not about her.
+    expect(await pendingFor(t, eva.userId)).toHaveLength(0);
+  });
+
+  test("the řešitel hears about a comment on their task", async () => {
+    const t = setup();
+    const { owner, organizationId, projectId, statusId } =
+      await createWorkspace(t);
+    const petr = await addFullMember(
+      t,
+      owner,
+      organizationId,
+      "Petr Svoboda",
+      "petr@example.com",
+    );
+
+    const taskId = await addTask(owner, projectId, statusId, "Opravit fakturaci");
+    await owner.as.mutation(api.tasks.setAssignee, {
+      taskId,
+      assigneeId: petr.userId,
+    });
+    await t.mutation(internal.notifications.claim, { userId: petr.userId });
+
+    await owner.as.mutation(api.comments.create, {
+      taskId,
+      body: body("Tohle je potřeba do pátku."),
+    });
+
+    const pending = await pendingFor(t, petr.userId);
+    expect(pending).toHaveLength(1);
+    expect(pending[0].kind).toBe("comment_added");
+  });
+
+  test("your own comment never notifies you", async () => {
+    const t = setup();
+    const { owner, projectId, statusId } = await createWorkspace(t);
+    const taskId = await addTask(owner, projectId, statusId, "Opravit fakturaci");
+    await owner.as.mutation(api.tasks.setAssignee, {
+      taskId,
+      assigneeId: owner.userId,
+    });
+
+    await owner.as.mutation(api.comments.create, {
+      taskId,
+      body: body("Poznámka pro sebe."),
+    });
+
+    expect(await pendingFor(t, owner.userId)).toHaveLength(0);
+  });
+
+  test("a comment does not overwrite the task it was written under", async () => {
+    const t = setup();
+    const { owner, organizationId, projectId, statusId } =
+      await createWorkspace(t);
+    const petr = await addFullMember(
+      t,
+      owner,
+      organizationId,
+      "Petr Svoboda",
+      "petr@example.com",
+    );
+
+    const taskId = await addTask(owner, projectId, statusId, "Opravit fakturaci");
+    await owner.as.mutation(api.comments.create, {
+      taskId,
+      body: body("Hned k tomu ", { userId: petr.userId, name: "Petr Svoboda" }),
+    });
+
+    // Two rows: one per category. Without the split the comment would have
+    // replaced the notification about the task itself.
+    const pending = await pendingFor(t, petr.userId);
+    expect(pending).toHaveLength(2);
+    expect(pending.map((event) => event.kind).sort()).toEqual([
+      "comment_mention",
+      "task_created",
+    ]);
+
+    const digest = await t.mutation(internal.notifications.claim, {
+      userId: petr.userId,
+    });
+    expect(digest!.taskCount).toBe(1);
+    expect(digest!.commentCount).toBe(1);
+  });
+
+  test("ten replies are one line with a count, not ten lines", async () => {
+    const t = setup();
+    const { owner, organizationId, projectId, statusId } =
+      await createWorkspace(t);
+    const petr = await addFullMember(
+      t,
+      owner,
+      organizationId,
+      "Petr Svoboda",
+      "petr@example.com",
+    );
+
+    const taskId = await addTask(owner, projectId, statusId, "Opravit fakturaci");
+    await owner.as.mutation(api.tasks.setAssignee, {
+      taskId,
+      assigneeId: petr.userId,
+    });
+    await t.mutation(internal.notifications.claim, { userId: petr.userId });
+
+    for (let index = 0; index < 10; index += 1) {
+      await owner.as.mutation(api.comments.create, {
+        taskId,
+        body: body(`Zpráva ${index + 1}`),
+      });
+    }
+
+    expect(await pendingFor(t, petr.userId)).toHaveLength(1);
+
+    const digest = await t.mutation(internal.notifications.claim, {
+      userId: petr.userId,
+    });
+    const item = digest!.projects[0].items[0];
+    expect(item.type).toBe("comment");
+    expect(item).toMatchObject({ count: 10, preview: "Zpráva 10" });
+  });
+
+  test("a mention keeps its own quote when unrelated chatter follows", async () => {
+    const t = setup();
+    const { owner, organizationId, projectId, statusId } =
+      await createWorkspace(t);
+    const petr = await addFullMember(
+      t,
+      owner,
+      organizationId,
+      "Petr Svoboda",
+      "petr@example.com",
+    );
+
+    const taskId = await addTask(owner, projectId, statusId, "Opravit fakturaci");
+    await owner.as.mutation(api.tasks.setAssignee, {
+      taskId,
+      assigneeId: petr.userId,
+    });
+    await t.mutation(internal.notifications.claim, { userId: petr.userId });
+
+    await owner.as.mutation(api.comments.create, {
+      taskId,
+      body: body("Tohle je na tebe ", {
+        userId: petr.userId,
+        name: "Petr Svoboda",
+      }),
+    });
+    await owner.as.mutation(api.comments.create, {
+      taskId,
+      body: body("Ještě něco nesouvisejícího."),
+    });
+
+    const digest = await t.mutation(internal.notifications.claim, {
+      userId: petr.userId,
+    });
+    const item = digest!.projects[0].items[0];
+    // The sentence that named him survives; the chatter only bumps the count.
+    expect(item).toMatchObject({
+      kind: "comment_mention",
+      count: 2,
+      preview: "Tohle je na tebe @Petr Svoboda",
+    });
+  });
+
+  test("a comment deleted inside the window drops its line", async () => {
+    const t = setup();
+    const { owner, organizationId, projectId, statusId } =
+      await createWorkspace(t);
+    const petr = await addFullMember(
+      t,
+      owner,
+      organizationId,
+      "Petr Svoboda",
+      "petr@example.com",
+    );
+
+    const taskId = await addTask(owner, projectId, statusId, "Opravit fakturaci");
+    await owner.as.mutation(api.tasks.setAssignee, {
+      taskId,
+      assigneeId: petr.userId,
+    });
+    await t.mutation(internal.notifications.claim, { userId: petr.userId });
+
+    const { commentId } = await owner.as.mutation(api.comments.create, {
+      taskId,
+      body: body("Omyl, mažu."),
+    });
+    await owner.as.mutation(api.comments.remove, { commentId });
+
+    expect(
+      await t.mutation(internal.notifications.claim, { userId: petr.userId }),
+    ).toBeNull();
+  });
+
+  test("editing a comment notifies nobody a second time", async () => {
+    const t = setup();
+    const { owner, organizationId, projectId, statusId } =
+      await createWorkspace(t);
+    const petr = await addFullMember(
+      t,
+      owner,
+      organizationId,
+      "Petr Svoboda",
+      "petr@example.com",
+    );
+
+    const taskId = await addTask(owner, projectId, statusId, "Opravit fakturaci");
+    await owner.as.mutation(api.tasks.setAssignee, {
+      taskId,
+      assigneeId: petr.userId,
+    });
+    const { commentId } = await owner.as.mutation(api.comments.create, {
+      taskId,
+      body: body("Původní znění."),
+    });
+    await t.mutation(internal.notifications.claim, { userId: petr.userId });
+
+    await owner.as.mutation(api.comments.update, {
+      commentId,
+      body: body("Opravený překlep."),
+    });
+
+    // A typo fix is not news.
+    expect(await pendingFor(t, petr.userId)).toHaveLength(0);
+  });
+
+  test("the switch turns comments off too", async () => {
+    const t = setup();
+    const { owner, organizationId, projectId, statusId } =
+      await createWorkspace(t);
+    const petr = await addFullMember(
+      t,
+      owner,
+      organizationId,
+      "Petr Svoboda",
+      "petr@example.com",
+    );
+
+    await petr.as.mutation(api.notifications.setTaskEmails, { enabled: false });
+    const taskId = await addTask(owner, projectId, statusId, "Opravit fakturaci");
+    await owner.as.mutation(api.comments.create, {
+      taskId,
+      body: body("Ahoj ", { userId: petr.userId, name: "Petr Svoboda" }),
+    });
+
+    expect(await pendingFor(t, petr.userId)).toHaveLength(0);
+  });
+});
+
 describe("the batching window", () => {
   test("eight tasks queue eight events but schedule exactly one e-mail", async () => {
     const t = setup();

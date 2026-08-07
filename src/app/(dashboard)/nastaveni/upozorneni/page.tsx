@@ -20,11 +20,12 @@ export default function NotificationSettingsPage() {
 
       <Card className="[--card-spacing:--spacing(6)]">
         <CardHeader>
-          <CardTitle>Nové úkoly</CardTitle>
+          <CardTitle>Úkoly a komentáře</CardTitle>
           <CardDescription>
-            Dáme vědět, když vám někdo přiřadí úkol nebo přidá nový do projektu,
-            který vidíte. Úkoly se sbírají do jednoho souhrnu — když jich někdo
-            zadá osm za sebou, přijde jeden e-mail se všemi.
+            Dáme vědět, když vám někdo přiřadí úkol, přidá nový do projektu,
+            který vidíte, zmíní vás přes @ nebo napíše pod úkol, který řešíte.
+            Všechno se sbírá do jednoho souhrnu — když toho někdo nadělá osm za
+            sebou, přijde jeden e-mail se vším.
           </CardDescription>
         </CardHeader>
         <CardContent>
