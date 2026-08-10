@@ -36,9 +36,10 @@ Version pins that matter:
   infers `useSession.data` as `never`; the single documented boundary cast lives
   in `src/components/providers/convex-client-provider.tsx`. Do not move the cast
   or bump auth without re-running typecheck and the real sign-up/session E2E.
-- Next.js 16.2.12 still pins vulnerable transitive PostCSS/Sharp releases.
-  `package.json#pnpm.overrides` keeps Next on the current stable version while
-  forcing `postcss@8.5.25` and `sharp@0.35.3`; `pnpm audit --prod` must stay clean.
+- Pinned direct dependencies still resolve vulnerable transitive releases.
+  `pnpm-workspace.yaml#overrides` keeps those direct dependencies stable while
+  forcing `postcss@8.5.25`, `sharp@0.35.3`, `nanoid@3.3.17` and
+  `hono@4.12.34`; `pnpm audit --prod` must stay clean.
 - `shadcn` CLI is v4: styles are presets, not `new-york`. This project used
   `shadcn init -b radix -p nova` (Radix primitives, neutral base color).
 - BlockNote is pinned to **exactly `0.52.1`** across `@blocknote/core`,
