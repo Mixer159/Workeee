@@ -9,8 +9,14 @@ import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
  * Non-modal on purpose: the board keeps working underneath, so another card
  * can be clicked straight into the panel and cards can still be dragged while
  * it is open. That also means no overlay — an overlay would swallow exactly
- * those clicks — and no dismiss-on-outside-click, because on this board every
- * outside click is meant for the board. Closing is the X or Escape.
+ * those clicks.
+ *
+ * Closing is the X, Escape, or a click anywhere outside the panel — with one
+ * exception: a click on a task card. That click already means "show me this
+ * one instead", and letting it close first would slide the panel out and
+ * straight back in. Everything the panel opens for itself (selects, dialogs,
+ * the editor's menus) is portalled from inside its React tree, so Radix counts
+ * it as inside and it never dismisses.
  */
 export function TaskDrawer({
   taskId,
@@ -35,7 +41,15 @@ export function TaskDrawer({
         showOverlay={false}
         // The panel is one editable surface, not a form with an intro.
         aria-describedby={undefined}
-        onInteractOutside={(event) => event.preventDefault()}
+        onPointerDownOutside={(event) => {
+          const target = event.target as Element | null;
+          if (target?.closest("[data-task-card]")) {
+            event.preventDefault();
+          }
+        }}
+        // Only a pointer closes the panel. Focus leaving it is what tabbing to
+        // the board does, and that is not a dismissal.
+        onFocusOutside={(event) => event.preventDefault()}
         className="gap-0 p-0 data-[side=right]:w-full data-[side=right]:sm:max-w-2xl"
       >
         <SheetTitle className="sr-only">Detail úkolu</SheetTitle>

@@ -41,6 +41,9 @@ export function TaskCard({
     <div
       ref={setNodeRef}
       style={{ transform: CSS.Transform.toString(transform), transition }}
+      // The drawer closes on an outside click, and a card is the one outside
+      // that means "show me this one instead" — this marks it as such.
+      data-task-card=""
       {...attributes}
       {...listeners}
       // dnd-kit's pointer sensor lets a short press through as a click, so the

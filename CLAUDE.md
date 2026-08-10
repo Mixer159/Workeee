@@ -604,9 +604,15 @@ is written into the address as `?ukol=<taskId>`.
   `Sheet`, which is why `SheetContent` takes `showOverlay`: an overlay would
   swallow the clicks that are the point of staying on the board. So while the
   panel is open, cards still drag, and clicking another card swaps the panel
-  over instead of closing it first. Nothing dismisses on an outside click —
-  every outside click on this screen belongs to the board. Closing is the X or
-  Escape.
+  over instead of closing it first. Closing is the X, Escape, or **a click
+  anywhere outside the panel** — with one exception, the click on a task card:
+  it already means "show me this one instead", and dismissing on it would slide
+  the panel out and straight back in. `TaskCard` carries `data-task-card` for
+  exactly that check, and `onPointerDownOutside` is the only outside handler
+  that closes — `onFocusOutside` is prevented, because tabbing to the board is
+  not a dismissal. Everything the panel opens for itself (selects, dialogs, the
+  lightbox, the editor's menus) is portalled from **inside its React tree**, so
+  Radix counts it as inside and it never dismisses.
 - The panel is keyed by the task id, so switching cards **mounts a fresh panel**
   rather than pushing another task's data into the one being edited.
 - `ProjectScreen` owns the open task and writes the address with
