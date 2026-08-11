@@ -247,8 +247,8 @@ export default defineSchema({
    * JSON the editor round-trips. Exactly one row per task, upserted by
    * `taskContent.save`; a task with no row has an empty description.
    *
-   * The JSON is opaque to the server on purpose: it validates that the string
-   * parses and stays under the size cap, and never interprets the blocks.
+   * The shared task-content parser validates the default BlockNote schema's
+   * structural envelope and resource bounds before this JSON text is stored.
    */
   taskContent: defineTable({
     taskId: v.id("tasks"),
@@ -315,6 +315,68 @@ export default defineSchema({
     targetId: v.optional(v.string()),
     meta: v.optional(v.any()),
   }).index("by_org", ["organizationId"]),
+
+  /**
+   * When one person last had one task open — the read state the unread badges
+   * are computed against. **A missing row means "never opened"**, so a task
+   * created by somebody else counts as new until its first visit, and every
+   * comment on it counts as unread; nothing is backfilled.
+   *
+   * Upserted by `taskSeen.markSeen` while the task drawer is open. The badges
+   * themselves are never stored: they are counted live from `comments` against
+   * `lastSeenAt`, so there is no counter to drift.
+   */
+  taskSeen: defineTable({
+    userId: v.id("users"),
+    taskId: v.id("tasks"),
+    projectId: v.id("projects"),
+    organizationId: v.id("organizations"),
+    lastSeenAt: v.number(),
+  })
+    .index("by_user_task", ["userId", "taskId"])
+    .index("by_user_project", ["userId", "projectId"])
+    .index("by_task", ["taskId"]),
+
+  /**
+   * The in-app notification feed — the bell, where `notificationEvents` is the
+   * e-mail. Two tables on purpose: the e-mail queue is **drained** by the flush
+   * (claim first, send second), while a feed item has to survive until the
+   * person has actually seen it, and it must not care about the e-mail switch.
+   *
+   * Same collapsing rule as the queue: at most one row per person per task per
+   * category (`task` / `comment`), the stronger kind wins and keeps its detail,
+   * `count` carries how many comments the row stands for. A new event replaces
+   * the row (delete + insert) so `_creationTime` is the burst's latest moment
+   * and the feed sorts by it with no second timestamp.
+   *
+   * Nothing else is denormalized: the task title, project name and actor name
+   * are read live by `notificationItems.list`, and access is re-checked there —
+   * a feed is only a set of pointers.
+   */
+  notificationItems: defineTable({
+    // The recipient, never the actor.
+    userId: v.id("users"),
+    organizationId: v.id("organizations"),
+    projectId: v.id("projects"),
+    taskId: v.id("tasks"),
+    kind: notificationKinds,
+    actorId: v.id("users"),
+    /** Comment rows only: the comment worth quoting — see `notificationEvents`. */
+    commentId: v.optional(v.id("comments")),
+    /** Comment rows only: how many comments this one row stands for. */
+    count: v.optional(v.number()),
+    /** Absent = unread. Set by `taskSeen.markSeen` and by `markAllRead`. */
+    readAt: v.optional(v.number()),
+  })
+    // The feed, newest first.
+    .index("by_user_org", ["userId", "organizationId"])
+    // The badge on the bell: `readAt` absent sorts first, so unread rows are
+    // one indexed range.
+    .index("by_user_org_read", ["userId", "organizationId", "readAt"])
+    // Opening a task marks its rows read.
+    .index("by_user_task", ["userId", "taskId"])
+    // Rows die with their task (`deleteTaskChildren`).
+    .index("by_task", ["taskId"]),
 
   /**
    * The per-user notification switch.

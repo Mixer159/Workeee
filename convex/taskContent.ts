@@ -7,20 +7,20 @@ import {
   type QueryCtx,
 } from "./_generated/server";
 import { getAuthUserId } from "./lib/auth";
+import {
+  MAX_TASK_CONTENT_BYTES,
+  parseTaskContent,
+} from "./lib/taskContent";
 import { getTaskAccess, requireTaskAccess, touchTask } from "./lib/tasks";
 
 /**
  * The task body: one BlockNote document per task.
  *
- * The server treats the document as an opaque string. It checks that the string
- * is JSON and that it is not absurdly large; it never walks the blocks. That
- * keeps the editor free to evolve its schema without a backend migration, and
- * the only thing that could hide inside the JSON — a storage URL — was already
- * handed out by an authorized `files.register` call.
+ * The server keeps the BlockNote JSON as a string, but validates the default
+ * schema's structural envelope before persisting it. The same pure parser is
+ * used by the client, so a malformed legacy row cannot take the task drawer
+ * down while a direct mutation call cannot create another one.
  */
-
-/** A megabyte of block JSON is a very long document; past that something is wrong. */
-const MAX_CONTENT_BYTES = 1024 * 1024;
 
 export const get = query({
   args: { taskId: v.id("tasks") },
@@ -55,12 +55,10 @@ export const save = mutation({
     }
     const { task } = await requireTaskAccess(ctx, userId, args.taskId);
 
-    if (args.content.length > MAX_CONTENT_BYTES) {
+    if (args.content.length > MAX_TASK_CONTENT_BYTES) {
       throw new Error("Popis je příliš dlouhý.");
     }
-    try {
-      JSON.parse(args.content);
-    } catch {
+    if (parseTaskContent(args.content) === null) {
       throw new Error("Popis se nepovedlo uložit.");
     }
 

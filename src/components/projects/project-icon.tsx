@@ -2,42 +2,33 @@ import { cn } from "@/lib/utils";
 
 /**
  * A project's icon, in the order the server guarantees is unambiguous: an
- * uploaded image, else the chosen emoji, else a deterministic tile with the
- * project's first letter. The tile palette follows the repo's alpha convention,
- * so both themes work without a `dark:` background variant.
+ * uploaded image or SVG, else the chosen emoji, else a graphite chip with the
+ * project's first letter.
+ *
+ * The fallback is deliberately monochrome. A deterministic color per project
+ * would put a sixth, seventh and eighth hue on a screen that already spends its
+ * color on task statuses and its one accent on the brand, and it would say
+ * something about the project that nobody chose. A project that wants an
+ * identity gets one three ways, all of them explicit.
  */
-const TILE_CLASSES = [
-  "bg-amber-500/15 text-amber-700 dark:text-amber-300",
-  "bg-emerald-500/15 text-emerald-700 dark:text-emerald-300",
-  "bg-sky-500/15 text-sky-700 dark:text-sky-300",
-  "bg-violet-500/15 text-violet-700 dark:text-violet-300",
-  "bg-rose-500/15 text-rose-700 dark:text-rose-300",
-  "bg-teal-500/15 text-teal-700 dark:text-teal-300",
-];
-
-function tileClass(seed: string): string {
-  let hash = 0;
-  for (let index = 0; index < seed.length; index += 1) {
-    hash = (hash * 31 + seed.charCodeAt(index)) % 1000003;
-  }
-  return TILE_CLASSES[hash % TILE_CLASSES.length];
-}
-
 export function ProjectIcon({
-  seed,
   name,
   emoji,
   iconUrl,
   className,
 }: {
-  seed: string;
   name: string;
   emoji?: string | null;
   iconUrl?: string | null;
   className?: string;
 }) {
+  // One chip for all three kinds. An emoji used to be rendered bare, and half
+  // of them (🔧, 📱, anything grey) are dark glyphs — on a near-black page that
+  // is not a quiet icon, it is an invisible one. The chip is the container that
+  // makes any glyph read, and it also stops the three kinds from being three
+  // different shapes in the same list.
   const shape = cn(
-    "flex size-5 shrink-0 items-center justify-center overflow-hidden rounded-md text-[0.65rem] font-semibold uppercase",
+    "flex size-5 shrink-0 items-center justify-center overflow-hidden rounded-md bg-muted text-[0.625rem] font-semibold uppercase ring-1 ring-border",
     className,
   );
 
@@ -46,7 +37,7 @@ export function ProjectIcon({
       // Convex storage URLs are signed and short-lived, so they are not worth
       // routing through the Next image optimizer.
       // eslint-disable-next-line @next/next/no-img-element
-      <img src={iconUrl} alt="" className={cn(shape, "object-cover")} />
+      <img src={iconUrl} alt="" className={cn(shape, "bg-transparent object-cover")} />
     );
   }
 
@@ -55,20 +46,14 @@ export function ProjectIcon({
       // The emoji carries its own type size — a glyph needs more room than a
       // single letter — but it is written before `className`, so a caller that
       // renders a bigger tile still decides.
-      <span
-        aria-hidden
-        className={cn(
-          "flex size-5 shrink-0 items-center justify-center rounded-md text-[0.9rem] leading-none",
-          className,
-        )}
-      >
+      <span aria-hidden className={cn(shape, "text-[0.8em] leading-none")}>
         {emoji}
       </span>
     );
   }
 
   return (
-    <span aria-hidden className={cn(shape, tileClass(seed))}>
+    <span aria-hidden className={cn(shape, "text-muted-foreground")}>
       {name.trim().charAt(0) || "?"}
     </span>
   );

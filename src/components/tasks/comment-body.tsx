@@ -1,7 +1,7 @@
 import type { CommentSegment } from "@convex/lib/commentBody";
 
 /**
- * A stored comment body. Text keeps its line breaks, a mention becomes an indigo
+ * A stored comment body. Text keeps its line breaks, a mention becomes an accent
  * chip — the app's one accent, the same one the composer previews.
  */
 export function CommentBody({ segments }: { segments: CommentSegment[] }) {

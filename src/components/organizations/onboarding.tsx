@@ -19,7 +19,7 @@ export function Onboarding() {
     <div className="flex flex-col gap-6">
       {/* No lead paragraph: it could only repeat what the two cards below
           already say, and the wordmark in the rail already names the product. */}
-      <h1 className="font-heading text-2xl font-semibold tracking-tight">
+      <h1 className="font-heading text-[1.75rem] leading-none font-bold tracking-[-0.03em]">
         Začínáme
       </h1>
 

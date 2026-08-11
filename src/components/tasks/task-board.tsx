@@ -30,7 +30,7 @@ import { StatusDot } from "@/components/tasks/status-dot";
 import { StatusFormDialog } from "@/components/tasks/status-form-dialog";
 import { TaskColumn } from "@/components/tasks/task-column";
 import { Skeleton } from "@/components/ui/skeleton";
-import type { BoardStatus, BoardTask } from "@/lib/tasks";
+import type { BoardStatus, BoardTask, TaskUnread } from "@/lib/tasks";
 
 type Grouping = Map<Id<"taskStatuses">, Id<"tasks">[]>;
 
@@ -55,6 +55,9 @@ export function TaskBoard({
 }) {
   const statuses = useQuery(api.taskStatuses.list, { projectId });
   const tasks = useQuery(api.tasks.listByProject, { projectId });
+  // What the person has not seen yet: badges on the cards. Loads beside the
+  // board and clears live as tasks are opened in the drawer.
+  const unread = useQuery(api.taskSeen.unreadByProject, { projectId });
   const moveTask = useMutation(api.tasks.move);
   const reorderStatuses = useMutation(api.taskStatuses.reorder);
 
@@ -79,6 +82,9 @@ export function TaskBoard({
 
   const statusById = new Map(statuses.map((status) => [status._id, status]));
   const taskById = new Map(tasks.map((task) => [task._id, task]));
+  const unreadByTask = new Map<Id<"tasks">, TaskUnread>(
+    (unread ?? []).map((entry) => [entry.taskId, entry]),
+  );
 
   const columnIds = orderColumns(
     statuses.map((status) => status._id),
@@ -209,7 +215,11 @@ export function TaskBoard({
       onDragEnd={handleDragEnd}
       onDragCancel={handleDragCancel}
     >
-      <div className="-mx-4 overflow-x-auto px-4 pb-2 lg:-mx-8 lg:px-8">
+      {/* The strip scrolls, the page does not (see `min-w-0` on `main`).
+          `workeee-scroll-fade` softens the right edge only while there is
+          board left to reach, so a fourth column reads as "there is more"
+          instead of as a column that got cut off. */}
+      <div className="workeee-scroll-fade -mx-4 overflow-x-auto px-4 pb-2 lg:-mx-8 lg:px-8">
         <div className="flex min-w-max items-start gap-4">
           <SortableContext
             items={columnIds}
@@ -235,6 +245,7 @@ export function TaskBoard({
                   dragging={dragging}
                   showEmptyHint={boardEmpty && index === 0}
                   selectedTaskId={selectedTaskId}
+                  unreadByTask={unreadByTask}
                   onOpenTask={onOpenTask}
                 />
               );

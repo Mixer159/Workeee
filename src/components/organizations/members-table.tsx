@@ -146,7 +146,7 @@ export function MembersTable({
                   <SelectTrigger
                     size="sm"
                     className="w-32"
-                    aria-label={`Role — ${member.name}`}
+                    aria-label={`Role: ${member.name}`}
                   >
                     <SelectValue />
                   </SelectTrigger>

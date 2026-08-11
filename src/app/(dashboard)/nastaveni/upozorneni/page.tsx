@@ -1,3 +1,4 @@
+import { PageHeader } from "@/components/layout/page-header";
 import { NotificationSettingsForm } from "@/components/notifications/notification-settings-form";
 import {
   Card,
@@ -13,10 +14,8 @@ import {
  */
 export default function NotificationSettingsPage() {
   return (
-    <div className="flex flex-col gap-6">
-      <h1 className="font-heading text-2xl font-semibold tracking-tight">
-        Upozornění
-      </h1>
+    <div className="flex flex-col gap-8">
+      <PageHeader title="Upozornění" />
 
       <Card className="[--card-spacing:--spacing(6)]">
         <CardHeader>

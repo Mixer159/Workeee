@@ -3,6 +3,12 @@ import type { Doc, Id } from "../_generated/dataModel";
 import type { MutationCtx, QueryCtx } from "../_generated/server";
 import { getProjectAccess } from "./access";
 import { commentBodyText, parseCommentBody } from "./commentBody";
+import {
+  categoryOf,
+  pushNotificationItem,
+  rank,
+  type NotificationKind,
+} from "./notificationItems";
 import { listProjectMemberIds } from "./projectMembers";
 
 /**
@@ -43,24 +49,8 @@ export const MAX_EVENTS_PER_DIGEST = 100;
 /** Longest quoted piece of a comment. A notification is a nudge, not the thread. */
 export const MAX_PREVIEW_LENGTH = 140;
 
-export type NotificationKind = Doc<"notificationEvents">["kind"];
-
-/**
- * Which of the two queues a kind belongs to. One row per person per task per
- * category, so a comment never overwrites the task it was written under.
- */
-export type NotificationCategory = "task" | "comment";
-
-export function categoryOf(kind: NotificationKind): NotificationCategory {
-  return kind === "task_created" || kind === "task_assigned"
-    ? "task"
-    : "comment";
-}
-
-/** Inside a category, the higher rank wins and keeps its own detail. */
-function rank(kind: NotificationKind): number {
-  return kind === "task_assigned" || kind === "comment_mention" ? 1 : 0;
-}
+// The category and rank rules live in `./notificationItems.ts` — the feed and
+// this queue collapse events the same way, and one of them has to own the rule.
 
 export type DigestTaskItem = {
   type: "task";
@@ -120,18 +110,21 @@ export async function wantsTaskEmails(
 /**
  * A new task on the board: everyone who can open the project hears about it,
  * except the person who just typed it.
+ *
+ * Each `notify*` writes both channels — the in-app feed row first (it takes no
+ * switch into account), then the e-mail queue, which `enqueue` filters by the
+ * personal switch. One audience computation, two deliveries.
  */
 export async function notifyTaskCreated(
   ctx: MutationCtx,
   task: Doc<"tasks">,
   actorId: Id<"users">,
 ): Promise<void> {
-  const recipients = await listProjectMemberIds(
-    ctx,
-    task.projectId,
-    task.organizationId,
-  );
-  await enqueue(ctx, [...recipients], task, actorId, "task_created");
+  const recipients = [
+    ...(await listProjectMemberIds(ctx, task.projectId, task.organizationId)),
+  ];
+  await pushNotificationItem(ctx, recipients, task, actorId, "task_created");
+  await enqueue(ctx, recipients, task, actorId, "task_created");
 }
 
 /** A task handed to somebody. Only the new řešitel, and never for oneself. */
@@ -141,6 +134,7 @@ export async function notifyTaskAssigned(
   actorId: Id<"users">,
   assigneeId: Id<"users">,
 ): Promise<void> {
+  await pushNotificationItem(ctx, [assigneeId], task, actorId, "task_assigned");
   await enqueue(ctx, [assigneeId], task, actorId, "task_assigned");
 }
 
@@ -162,11 +156,27 @@ export async function notifyComment(
   actorId: Id<"users">,
 ): Promise<void> {
   const mentioned = new Set(mentionedIds);
+  await pushNotificationItem(
+    ctx,
+    mentioned,
+    task,
+    actorId,
+    "comment_mention",
+    commentId,
+  );
   await enqueue(ctx, [...mentioned], task, actorId, "comment_mention", commentId);
 
   // The řešitel hears about it too — unless they were mentioned, in which case
   // they already have the stronger of the two.
   if (task.assigneeId && !mentioned.has(task.assigneeId)) {
+    await pushNotificationItem(
+      ctx,
+      [task.assigneeId],
+      task,
+      actorId,
+      "comment_added",
+      commentId,
+    );
     await enqueue(
       ctx,
       [task.assigneeId],
@@ -452,14 +462,15 @@ export async function claimDigest(
 
 /**
  * The quoted line under a comment notification, or `null` when the comment has
- * been deleted since it was queued.
+ * been deleted since it was queued. Shared by the e-mail digest and the in-app
+ * feed (`convex/notificationItems.ts`), so the two quote identically.
  *
  * The body is a segment array, so this goes through the shared codec rather
  * than through the raw JSON — a mention reads as `@Jméno`, which is how it was
  * written.
  */
-async function commentPreview(
-  ctx: MutationCtx,
+export async function commentPreview(
+  ctx: QueryCtx | MutationCtx,
   commentId: Id<"comments">,
 ): Promise<string | null> {
   const comment = await ctx.db.get(commentId);

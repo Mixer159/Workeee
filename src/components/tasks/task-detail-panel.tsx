@@ -259,9 +259,12 @@ export function TaskDetailPanel({
               </div>
             </div>
 
+            {/* Verbless, the same rule the notification e-mails follow: Czech
+                past tense is gendered, the app does not know anybody's gender,
+                and a name is not one. */}
             <p className="text-xs text-muted-foreground">
-              Vytvořil {task.createdBy?.name ?? "neznámý uživatel"} ·{" "}
-              {formatDate(task.createdAt)}
+              Vytvořeno {formatDate(task.createdAt)} ·{" "}
+              {task.createdBy?.name ?? "neznámý uživatel"}
             </p>
 
             {/* No rule above the editor: the body is the panel's main surface,

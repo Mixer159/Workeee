@@ -1,6 +1,6 @@
 import { OG_CONTENT_TYPE, OG_SIZE, renderOgImage } from "@/lib/og";
 
-export const alt = "Workeee — interní aplikace pro týmy, projekty a úkoly.";
+export const alt = "Workeee: interní aplikace pro týmy, projekty a úkoly.";
 export const size = OG_SIZE;
 export const contentType = OG_CONTENT_TYPE;
 

@@ -1,5 +1,6 @@
 "use client";
 
+import { PageHeader } from "@/components/layout/page-header";
 import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -101,10 +102,8 @@ export default function OrganizationSettingsPage() {
   };
 
   return (
-    <div className="flex flex-col gap-6">
-      <h1 className="font-heading text-2xl font-semibold tracking-tight">
-        Nastavení organizace
-      </h1>
+    <div className="flex flex-col gap-8">
+      <PageHeader title="Nastavení organizace" />
 
       <Card className="[--card-spacing:--spacing(6)]">
         <CardHeader>

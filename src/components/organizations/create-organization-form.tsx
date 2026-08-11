@@ -61,7 +61,6 @@ export function CreateOrganizationForm({
           maxLength={60}
           required
           autoFocus={autoFocus}
-          className="h-9"
         />
       </div>
       <Button type="submit" size="lg" disabled={pending}>

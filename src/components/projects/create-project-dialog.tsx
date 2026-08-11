@@ -168,12 +168,10 @@ export function CreateProjectDialog({
               maxLength={60}
               required
               autoFocus
-              className="h-9"
             />
           </div>
 
           <ProjectIconPicker
-            seed={organizationId}
             name={name}
             emoji={emoji}
             imageUrl={staged?.url ?? null}

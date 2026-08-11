@@ -2,7 +2,6 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
 import { Loader2Icon } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -17,6 +16,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { authClient } from "@/lib/auth-client";
 import { authErrorMessage } from "@/lib/auth-errors";
+import { goAfterAuth } from "@/lib/auth-redirect";
 
 const MAX_NAME_LENGTH = 60;
 const MIN_PASSWORD_LENGTH = 12;
@@ -27,7 +27,6 @@ const MAX_PASSWORD_LENGTH = 256;
  * up we land back on the join page instead of the dashboard.
  */
 export function SignUpForm({ inviteCode }: { inviteCode?: string }) {
-  const router = useRouter();
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -53,7 +52,7 @@ export function SignUpForm({ inviteCode }: { inviteCode?: string }) {
       toast.error(authErrorMessage(error));
       return;
     }
-    router.push(inviteCode ? `/join/${encodeURIComponent(inviteCode)}` : "/");
+    goAfterAuth(inviteCode);
   };
 
   return (
@@ -80,7 +79,6 @@ export function SignUpForm({ inviteCode }: { inviteCode?: string }) {
               maxLength={MAX_NAME_LENGTH}
               value={name}
               onChange={(event) => setName(event.target.value)}
-              className="h-9"
             />
           </div>
           <div className="flex flex-col gap-1.5">
@@ -92,7 +90,6 @@ export function SignUpForm({ inviteCode }: { inviteCode?: string }) {
               required
               value={email}
               onChange={(event) => setEmail(event.target.value)}
-              className="h-9"
             />
           </div>
           <div className="flex flex-col gap-1.5">
@@ -106,7 +103,6 @@ export function SignUpForm({ inviteCode }: { inviteCode?: string }) {
               maxLength={MAX_PASSWORD_LENGTH}
               value={password}
               onChange={(event) => setPassword(event.target.value)}
-              className="h-9"
             />
             <p className="text-xs text-muted-foreground">Alespoň 12 znaků.</p>
           </div>

@@ -16,7 +16,7 @@ export function StatusDot({
     <span
       aria-hidden
       className={cn(
-        "size-2 shrink-0 rounded-full",
+        "size-2 shrink-0 rounded-[2px]",
         TASK_STATUS_DOT_CLASS[color],
         className,
       )}

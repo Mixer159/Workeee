@@ -3,9 +3,11 @@
 import { useRef } from "react";
 import { useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
+import { MessageCircleIcon } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import type { BoardTask } from "@/lib/tasks";
+import type { BoardTask, TaskUnread } from "@/lib/tasks";
 import { userInitials } from "@/lib/user";
+import { plural } from "@convex/lib/plural";
 import { cn } from "@/lib/utils";
 
 /** How far the pointer may travel between press and release and still count as a click. */
@@ -15,11 +17,14 @@ export function TaskCard({
   task,
   selected,
   columnDragging,
+  unread,
   onOpen,
 }: {
   task: BoardTask;
   selected: boolean;
   columnDragging: boolean;
+  /** Absent = nothing new on this task. */
+  unread?: TaskUnread;
   onOpen: () => void;
 }) {
   const pressedAt = useRef<{ x: number; y: number } | null>(null);
@@ -73,15 +78,32 @@ export function TaskCard({
         listeners?.onKeyDown?.(event);
       }}
       className={cn(
-        "flex cursor-pointer touch-none items-start gap-2 rounded-lg border bg-card p-3 text-left transition-colors outline-none hover:border-foreground/20 focus-visible:ring-3 focus-visible:ring-ring/50",
+        "flex cursor-pointer touch-none items-start gap-2.5 rounded-lg border border-border bg-card px-3 py-2.5 text-left transition-colors outline-none hover:border-foreground/25 focus-visible:ring-3 focus-visible:ring-ring/40",
         // Which card the drawer on the right is showing.
-        selected && "border-primary ring-3 ring-ring/30",
+        selected && "border-primary bg-primary/[0.06] hover:border-primary",
         isDragging && "opacity-40",
       )}
     >
-      <p className="min-w-0 flex-1 text-sm leading-snug break-words">
+      <p className="min-w-0 flex-1 text-sm leading-snug break-words text-card-foreground">
         {task.title}
       </p>
+      {/* One indicator per card: the comment count says the most, so it wins;
+          the dot only stands in for a task never opened at all. */}
+      {unread && unread.unreadComments > 0 ? (
+        <span
+          title={`${unread.unreadComments} ${plural(unread.unreadComments, "nový komentář", "nové komentáře", "nových komentářů")}`}
+          className="flex h-[1.125rem] shrink-0 items-center gap-1 rounded-md bg-primary/15 px-1.5 font-mono text-[0.6875rem] font-medium tabular-nums text-primary"
+        >
+          <MessageCircleIcon aria-hidden className="size-3" />
+          {unread.unreadComments}
+        </span>
+      ) : unread?.isNew ? (
+        <span
+          title="Ještě jste ho neotevřeli"
+          aria-label="Ještě jste ho neotevřeli"
+          className="mt-1.5 size-1.5 shrink-0 rounded-full bg-primary"
+        />
+      ) : null}
       {task.assignee ? (
         <Avatar size="sm" title={task.assignee.name}>
           <AvatarImage src={task.assignee.image} alt="" />

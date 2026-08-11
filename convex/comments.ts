@@ -88,6 +88,14 @@ export const create = mutation({
     }
     const { task, access } = await requireTaskAccess(ctx, userId, args.taskId);
 
+    const existingComments = await ctx.db
+      .query("comments")
+      .withIndex("by_task", (q) => q.eq("taskId", task._id))
+      .take(MAX_COMMENTS);
+    if (existingComments.length >= MAX_COMMENTS) {
+      throw new Error("Úkol může mít nejvýš 200 komentářů.");
+    }
+
     const attachments = await claimableAttachments(
       ctx,
       task._id,

@@ -4,6 +4,12 @@ Interní týmová aplikace: organizace → projekty → úkoly. This file is the
 contract for the repo; it overrides generic conventions and must be updated in
 the same session as any change to a documented fact.
 
+**And so must the changelog.** Any change a person using the app would notice
+gets an entry appended to `src/lib/changelog.ts` in the same session, before the
+verification gate runs. The two rules are one habit: this file records what is
+true, the changelog records what changed. See **The changelog** for what an
+entry looks like and for what deliberately gets none.
+
 Follow `crm-app-skill` for everything not stated here (five laws, server-only
 authorization, indexed reads, fail-soft queries / throwing mutations, one file
 one responsibility, no barrel files).
@@ -19,6 +25,7 @@ one responsibility, no barrel files).
 | Backend | Convex (schema, queries/mutations/actions, HTTP router) |
 | Auth | **Better Auth** via `@convex-dev/better-auth`, e-mail + password, **self-registration ON** |
 | Styling | Tailwind CSS v4, CSS-first tokens in `src/app/globals.css` |
+| Type | **Switzer** + **JetBrains Mono**, self-hosted from `src/app/fonts` via `next/font/local` |
 | Components | shadcn/ui on Radix (`radix-nova` style), copied into `src/components/ui/` |
 | Icons | `lucide-react` |
 | Drag & drop | `@dnd-kit/core` + `@dnd-kit/sortable` + `@dnd-kit/utilities` |
@@ -134,6 +141,8 @@ convex/
   files.ts               # generateUploadUrl / register / listByTask / remove
   comments.ts            # listByTask / create / update / remove
   notifications.ts       # settings / setTaskEmails / claim / flush
+  notificationItems.ts   # the in-app feed: list / unreadCount / markAllRead
+  taskSeen.ts            # markSeen / unreadByProject / unreadByOrganization
   crons.ts               # scheduled jobs — one entry per job
   fileReaper.ts          # internal: delete blobs nothing points at any more
   migrations.ts          # internal one-off backfills (`pnpm exec convex run`)
@@ -145,6 +154,8 @@ convex/
   svg.test.ts            # the icon SVG gate: what it accepts, and the attacks
   notifications.test.ts  # who is queued, the window, the checks at send time
   notificationEmail.test.ts  # the subject, the plurals, the HTML escaping
+  notificationItems.test.ts  # feed rows: who, collapsing, reading, the switch
+  taskSeen.test.ts       # what counts as unseen, and that it dies with the task
   lib/auth.ts            # getAuthUserId / getAuthUser / getUserByAuthId
   lib/access.ts          # the permission matrix — org + project access
   lib/activity.ts        # logActivity (audit trail)
@@ -153,6 +164,7 @@ convex/
   lib/files.ts           # blob validation, caps, deletion
   lib/invites.ts         # expiry presets, code generation, status
   lib/notificationEmail.ts # buildTaskDigest — subject + HTML + text, pure
+  lib/notificationItems.ts # the in-app feed writer + the category/rank rules
   lib/notifications.ts   # the queue, the sliding window, claimDigest
   lib/ordering.ts        # fractional order helpers for board columns
   lib/plural.ts          # Czech 1 / 2–4 / 5+ (shared with the client)
@@ -160,36 +172,54 @@ convex/
   lib/storage.ts         # global one-blob/one-owner invariant + safe deletion
   lib/svg.ts             # the icon SVG allowlist + `data:` URI (never a blob)
   lib/tasks.ts           # getTaskAccess / requireTaskAccess / touchTask /
-                         # deleteTaskChildren (body + files + comments)
+                         # deleteTaskChildren (body + files + comments +
+                         # notifications + read state)
+  lib/taskSeen.ts        # read state + what counts as unseen
   lib/taskStatuses.ts    # core status seed + ordered read
   lib/validation.ts      # normalizeName, normalizeTitle
 src/
   app/
     layout.tsx           # fonts, pre-hydration theme script, providers, Toaster,
                          # metadataBase + the OpenGraph / Twitter copy
-    icon.svg             # the mark — indigo tile, white letterform W
+    icon.svg             # the mark — three bars and the card above the last
     favicon.ico          # 16 · 32 · 48, rasterized from icon.svg
     apple-icon.png       # 180, full bleed (iOS rounds it itself)
+    fonts/               # Switzer + JetBrains Mono variable, self-hosted, plus
+                         # the two static Switzer cuts Satori reads
     opengraph-image.tsx  # the link preview every page inherits
     not-found.tsx        # 404, outside the shell, with its own frame
+    (marketing)/         # PUBLIC shell: the app's dark theme, header + footer
+    (marketing)/o-aplikaci/page.tsx            # the landing page
+    (marketing)/o-aplikaci/opengraph-image.tsx # its own preview, beside the page on purpose
+    (marketing)/zmeny/   # the whole changelog, grouped by month
     (auth)/prihlaseni    # sign in       (?invite=<code> carries a pending invite)
     (auth)/registrace    # sign up       (?invite=<code> likewise)
     (dashboard)/         # AuthGuard + OrganizationProvider + AppShell
+    (dashboard)/page.tsx # `/` — the first screen after signing in — "Projekty"
+    prehled/             # redirect to `/`, keeps interim bookmarks alive
     (dashboard)/projekt/[id]            # project board + task drawer (?ukol=<id>)
     (dashboard)/projekt/[id]/ukol/[taskId]  # redirect, keeps older links alive
     (dashboard)/nastaveni/organizace    # organization settings, managers only
     (dashboard)/nastaveni/upozorneni    # personal notification switch, everybody
+    (dashboard)/upozorneni              # the in-app notification feed
     join/[code]/         # PUBLIC invite landing page + its own opengraph-image
     api/auth/[...all]/   # proxy into the Convex deployment
   components/
     ui/                  # shadcn primitives, ours to edit
+    brand/               # mark (the glyph, in currentColor, both surfaces)
     auth/                # auth-guard, sign-in-form, sign-up-form
     forms/               # name-form (shared rename control)
     invites/             # invites-panel (org- and project-scoped)
     join/                # join-screen
     layout/              # app-shell, sidebar-content, organization-switcher,
-                         # projects-nav, user-menu, wordmark, empty-state
-    notifications/       # notification-settings-form
+                         # projects-nav, notifications-link, user-menu,
+                         # wordmark, page-header, empty-state
+    marketing/           # the public page only: site-header, site-footer,
+                         # app-link, repo-button, shot, hero, facts, product,
+                         # ledger, self-hosting, code-block, open-source,
+                         # changelog-section, changelog-entry
+    notifications/       # notification-settings-form, notification-feed,
+                         # unread-badge
     organizations/       # onboarding, create/join forms + dialogs, members-table,
                          # delete-organization-dialog
     projects/            # project-screen, project-icon, project-icon-picker,
@@ -204,11 +234,17 @@ src/
                          # file-type-icon, image-lightbox
   hooks/                 # use-current-user, use-current-organization, use-theme,
                          # use-now, use-autosave-text
-  lib/                   # auth-client, auth-server, auth-errors, blocknote-cs,
-                         # clipboard, comment-draft, current-organization,
-                         # format, invites, og, organization, project-emojis,
-                         # project-icons, save-state, task-status-colors, tasks,
-                         # theme, upload, user, utils
+  lib/                   # auth-client, auth-redirect, auth-server, auth-errors,
+                         # blocknote-cs, changelog, clipboard, comment-draft,
+                         # current-organization, format, invites, og,
+                         # organization, project-emojis, project-icons, repo,
+                         # save-state, shots, task-status-colors, tasks, theme,
+                         # upload, user, utils
+  proxy.ts               # `/` answers to the session cookie: app, or the
+                         # public page rewritten in — see **Routes**
+public/marketing/        # the captures of the running app the page is built on,
+                         # plus the one generated texture plate
+LICENSE                  # MIT. The public page claims it, so it has to be here
 ```
 
 No barrel files, no `index.ts` re-exports — import by full path.
@@ -227,6 +263,13 @@ outside `src/`, so client code imports the generated API as
   capped server-side before the Better Auth mirror is written.
 - Sign in / sign up / sign out happen **client-side** through
   `authClient` (`src/lib/auth-client.ts`). Convex functions cannot set cookies.
+- **Landing after an auth call is a document navigation, not a `router.push`**
+  (`src/lib/auth-redirect.ts`). The session cookie exists the moment the call
+  resolves but the Convex token does not, and in that window `useConvexAuth()`
+  reports "not authenticated, nothing left to load" — which is exactly what
+  `AuthGuard` answers by sending the person to `/prihlaseni`. A client-side push
+  lands inside it and bounces a brand new account straight back to the sign-in
+  screen, which is the first thing a new person sees. A full load has no window.
 - Auth state in the UI comes from `useConvexAuth()` / `<Authenticated>`, never
   from Better Auth's `useSession()` — Convex validates the token after Better
   Auth already reports a user.
@@ -338,6 +381,12 @@ notificationEvents   userId, organizationId, projectId, taskId, kind, actorId,
                      commentId?, count?   — the last two on comment rows only
                                                           by_user · by_task
 notificationBatches  userId, scheduledId, firstEventAt, flushAt        by_user
+notificationItems    userId, organizationId, projectId, taskId, kind, actorId,
+                     commentId?, count?, readAt?  — readAt absent = unread
+                     by_user_org · by_user_org_read · by_user_task · by_task
+taskSeen             userId, taskId, projectId, organizationId, lastSeenAt
+                     — a missing row means "never opened"
+                     by_user_task · by_user_project · by_task
 ```
 
 Shared validators live in `convex/schema.ts`: `organizationRoles`,
@@ -577,6 +626,13 @@ from spending that appetite out of the page:
 Below ~1260 px the strip scrolls horizontally, which is what a Kanban board is
 supposed to do. The page never does.
 
+A board with four or more statuses scrolls at any width, so the strip carries
+`workeee-scroll-fade`: its right edge softens **only while it has somewhere left
+to scroll**, which is what turns a half-visible fourth column from "cut off"
+into "there is more". It is driven by `animation-timeline: scroll(self inline)`,
+so there is no listener and nothing to clean up, and where that is unsupported
+the strip simply has no fade.
+
 ### Client-side tenant context
 
 `OrganizationProvider` (`src/components/providers/organization-provider.tsx`)
@@ -675,8 +731,11 @@ them draws its own. Success never toasts — only a failure does.
 ### The task body editor
 
 `taskContent` holds one row per task — the BlockNote document serialized to JSON,
-upserted by `taskContent.save`. The server treats the string as opaque: it checks
-that it parses and is under **1 MB**, and never walks the blocks.
+upserted by `taskContent.save`. The shared parser in
+`convex/lib/taskContent.ts` checks the default BlockNote block/content shapes,
+at most **50 nested block levels**, at most **20 000 structural nodes**, and a
+serialized size under **1 MB**. The task drawer uses the same parser and opens
+empty for a malformed legacy row, so bad stored JSON cannot crash the editor.
 
 ```ts
 taskContent.get   ({ taskId })                 → { content, updatedAt } | null   // fail soft
@@ -714,8 +773,8 @@ not a substitute for the other:
 - The **stylesheet** is the editor's layout: block geometry, list markers, the
   heading scale, the inline placeholder, `outline: none` on the document. Drop
   it and what is left is bare ProseMirror — the browser paints its own focus
-  ring around the whole body (recoloured indigo by `* { outline-ring/50 }`, so it
-  reads as two stray blue rules), the placeholder falls onto the line *below* the
+  ring around the whole body (recoloured by `* { outline-ring/50 }`, so it reads
+  as two stray accent-coloured rules), the placeholder falls onto the line *below* the
   caret because `.bn-block-content` is no longer `display: flex`, and "Nadpis 1"
   applies but renders at body size. That last one is why the symptom people
   report is **"the slash commands don't work"**: they do, invisibly.
@@ -801,7 +860,8 @@ the composer builds segments with it, `convex/comments.ts` re-parses and re-chec
 them. A mention survives as a real `Id<"users">`, so the notifications of a later
 phase read ids instead of re-parsing prose; the `name` beside it is display copy
 frozen at the moment the comment was written. Caps: 5 000 plain-text characters,
-200 segments, 10 attachments.
+200 segments, 10 attachments, and 200 comments per task (enforced by
+`comments.create`, not only by the list query).
 
 ```ts
 comments.listByTask ({ taskId })  → [{ _id, author, body, attachments, edited,
@@ -823,7 +883,7 @@ The composer (`src/components/tasks/mention-textarea.tsx`) edits a plain string:
 a mention is written as `@Jméno Příjmení` and the draft carries the user id that
 name belongs to (`src/lib/comment-draft.ts`). Serializing scans the text for the
 names it knows; deleting a character of a name turns it back into plain text,
-which is exactly right. The indigo chips are a **backdrop**: a div in normal flow
+which is exactly right. The accent-coloured chips are a **backdrop**: a div in normal flow
 renders the styled text and therefore sets the height, and the textarea lies on
 top of it with transparent text — one element owns the typography, and the
 auto-growing is free. `@` opens the member picker (arrows / Enter / Tab / Esc),
@@ -887,6 +947,9 @@ and all four go into a queue rather than out of the mutation that caused them:
 | `comment_mention` | everyone the comment `@`-names |
 | `comment_added` | the task's řešitel |
 
+Since Phase 15 every one of them also lands in **the in-app feed** — same
+audience, same collapsing, no switch. See **The second channel** below.
+
 **Comments are deliberately narrower than tasks.** A new task is rare and
 concerns the whole project; comments outnumber tasks by an order of magnitude,
 and mailing everybody about every reply would make one lively thread shout at
@@ -908,6 +971,56 @@ Inside a category the stronger kind wins — `task_assigned` over `task_created`
 replies are one line carrying `count: 10`, and if the first of them mentioned
 you, that is still the sentence quoted in the e-mail: being named and then
 buried under unrelated chatter should not lose the sentence that named you.
+
+`categoryOf` and `rank` live in `convex/lib/notificationItems.ts` and the
+e-mail queue imports them from there — the feed and the queue collapse events
+by the same rule, and exactly one module owns it.
+
+### The second channel: the feed and the badges (Phase 15)
+
+The same four events, shown inside the app. Three surfaces, all counted from
+the same two tables and clearing from the same action:
+
+- **`/upozorneni`** — the feed. `notificationItems` rows written by the same
+  `notify*` calls that enqueue e-mail (`convex/lib/notificationItems.ts`), one
+  row per person per task per category, replaced by delete + insert on a new
+  event so the merged row's `_creationTime` is the burst's latest moment and
+  the list sorts by it with no second timestamp. The rail's "Upozornění" link
+  carries `unreadCount`.
+- **Task cards** — a lime chip with the number of unread comments, or a small
+  dot for a task never opened at all. One indicator per card; the chip wins.
+- **Project rows** (rail and dashboard) — how many **tasks** carry something
+  unseen, not how many events happened: three replies under one task are one
+  task to look at, and the count answers "how many places do I need to open".
+
+The differences from the e-mail queue are the whole design:
+
+- **The feed ignores `notificationSettings`.** The switch turns off e-mail, not
+  being told; a feed row costs nobody an inbox. So `pushNotificationItem` is
+  called from the `notify*` functions *before* `enqueue` filters by the switch.
+- **Nothing is drained.** The queue is claimed at flush; a feed row lives until
+  it is read, and `readAt` (absent = unread) is that state. A new event on a
+  row already read starts a fresh burst counting from one.
+- **Read state is `taskSeen`** — one row per person per task, `lastSeenAt`,
+  upserted by `taskSeen.markSeen`, which the comments section of the drawer
+  fires when the stream loads and again for every comment arriving while it is
+  open (being on the task *is* reading them). `markSeen` also settles the feed
+  rows of that task, so opening a task clears every badge it holds anywhere.
+  The rest is "Označit vše za přečtené" on the feed page.
+- **Everything unread is counted live, never stored.** A comment is unread when
+  it is newer than `lastSeenAt` and not the reader's own (an indexed
+  `by_task` + `_creationTime` range per task, bounded by the 200-comment cap);
+  a task is new when it has no `taskSeen` row and somebody else created it. No
+  counter exists to drift, and a missing row honestly means "never opened" —
+  including for rows that predate the feature.
+- Same discipline as the digest otherwise: nothing denormalized (titles, names
+  and the quoted comment are read live by `notificationItems.list`, through the
+  shared `commentPreview`), access re-checked per project at read, and both
+  tables die with their task in `deleteTaskChildren`.
+
+The user menu's link to `/nastaveni/upozorneni` is labelled **"Nastavení
+upozornění"**: the rail's "Upozornění" is the feed, and one word must not name
+two doors on one screen.
 
 ### Why Brevo, and not the obvious choice
 
@@ -1017,30 +1130,247 @@ pnpm exec convex run notifications:flush '{"userId": "..."}'
 
 | Route | Access | What it is |
 |---|---|---|
-| `/` | authenticated | Dashboard — "Projekty": every visible project of the current organization as a card. Creating one lives in the rail, not here. With no membership it renders the onboarding screen (create organization / join by code) |
+| `/` | **both** | With a session cookie: the dashboard — "Projekty", every visible project of the current organization as a card; creating one lives in the rail, not here; with no membership it renders the onboarding screen. Without one, `src/proxy.ts` **rewrites** (never redirects) to `/o-aplikaci`, so the bare domain is the app for its users and the pitch for everybody else — including crawlers and unfurls, which carry no cookie. The check is the cookie's presence, not its validity: choosing a page is not authorization, and a stale cookie just lands on `AuthGuard` |
+| `/o-aplikaci` | **public** | The landing page: what it is, what it does, how to host it yourself, the licence, the latest changes, over captures of the real application. Static, no auth, no Convex. A signed-in visitor gets a quiet "Přehled" link in the header, never a redirect |
+| `/zmeny` | **public** | The whole changelog, grouped by month |
+| `/prehled` | — | Redirect to `/` — the dashboard lived here briefly while the landing page held the base URL |
 | `/projekt/[id]` | project members | Project header + settings dialog for managers + the Kanban board. `?ukol=<taskId>` opens that task in the drawer on the right: title, status, assignee, meta, block-editor description, Přílohy, Komentáře |
 | `/projekt/[id]/ukol/[taskId]` | project members | Redirect to `/projekt/[id]?ukol=<taskId>` — the detail is a drawer now |
 | `/nastaveni/organizace` | org managers | Rename, members table, organization invites; the owner also gets the delete card |
-| `/nastaveni/upozorneni` | authenticated | One switch: e-mail digests of new tasks. Personal, so no manager guard — reached from the user menu |
+| `/nastaveni/upozorneni` | authenticated | One switch: e-mail digests of new tasks. Personal, so no manager guard — reached from the user menu ("Nastavení upozornění") |
+| `/upozorneni` | authenticated | The in-app notification feed: new tasks, assignments, mentions and comments, unread first by nature. Reached from the rail's "Upozornění" link, which carries the unread count; a row links into the task's drawer, and opening it is what marks it read |
 | `/join/[code]` | **public** | Invite summary; unauthenticated visitors go to `/registrace?invite=<code>` or `/prihlaseni?invite=<code>` and come back here to accept |
 | `/prihlaseni`, `/registrace` | public | Auth; `?invite=<code>` redirects back to the join page afterwards |
 
+## The public page (Phase 14)
+
+`/o-aplikaci` is the landing page and it is public, static and server-rendered:
+a crawler and a chat unfurl have to find the real copy in the HTML. It is also
+what the bare domain shows to anybody **without** a session — `src/proxy.ts`
+rewrites `/` here when no Better Auth cookie rides on the request — so the app
+keeps the base URL for its users while the pitch still greets everybody else on
+the same address; the page's `canonical` names `/o-aplikaci` so the two never
+compete in search. And **a signed-in visitor on `/o-aplikaci` is not
+redirected** — they are usually the person who deployed it, and bouncing them
+would make the page unreachable for exactly the people who need to show it to
+somebody. The header's one client component (`marketing/app-link.tsx`) is the
+door either way: "Přehled" for a validated session, "Přihlásit se" for a
+visitor, and nothing while Convex is still deciding which.
+
+- **It is the app's dark theme, not a second palette.** The marketing layout
+  puts the app's own `dark` class on its root, so `bg-background`,
+  `border-border` and `text-primary` on this page are the same tokens the board
+  paints with. That is what lets a screenshot of the product sit on the page
+  with nothing around it and still read as part of the layout. A visitor whose
+  app theme is light still sees this page dark, because the class is on the
+  layout and not on `<html>`; `html:has(.workeee-marketing)` paints the document
+  itself, because a nested layout cannot touch `<html>` and without it an
+  overscroll bounce shows the app's background through.
+- It has **one job and one button**: "Otevřít na GitHubu", which appears exactly
+  twice, in the hero and at the end of the open-source section. The header
+  carries none, because a third copy following the reader down the page would
+  make it three. The secondary action is one anchor, "Jak si to nasadit".
+- Sections, and no two share a layout family: hero interleave → **Co Workeee je**
+  (a hairline fact grid whose last two cells are screenshots) → **Úkol nikdy
+  neopustí nástěnku** (one large capture with a smaller one laid over its corner)
+  → the scattered **ledger** → **Hostujte si to sami** (steps on a vertical rail)
+  → **Open source** (a bare statement) → **Změny** (a date rail) → the footer
+  bookend.
+- **Zero eyebrows.** Not one small uppercase label above a heading anywhere on
+  the page. The heading is the label, and the section's place on the page is the
+  category.
+- **Monospace has exactly one job here**: commands, environment-variable names,
+  file paths, the repository address and changelog dates. Nothing else on either
+  surface is set in it.
+
+### The interleave
+
+The hero is the one loud composition, and it is a real z-sandwich rather than
+one pre-composed picture:
+
+```
+z-40  a single task card, in front of everything
+z-30  the letters "EE", and the copy column
+z-20  the board, crossing the lower third of the letterforms
+z-10  the letters "WORKE"
+```
+
+The word is split into two adjacent spans with no space between them, which is
+the whole trick: `EE` at z-30 comes back out **in front** of the screenshot, so
+the board passes *through* the word instead of sitting on it. It is still one
+word to a screen reader and to anything that copies the text.
+
+- **Everything in the section is sized in `cqi`**, and the wrapper is a container
+  for that reason alone: the word (`22cqi`), the overlap (`-mt-[6cqi]`) and the
+  card's `top`. One `cqi` is one percent of the content column, which is the
+  thing the composition actually has to fill — a `vw` is not, and a
+  `clamp(…, 17.4vw, 15rem)` is wrong twice: it measured against the viewport
+  below the cap, and above the cap (from ~1400 px, so most desktops) it stopped
+  growing while the column did not, leaving the word a fist short of the right
+  edge.
+- **Legibility floor:** the board's top edge leaves about two thirds of every
+  letterform showing. That number is the composition — at four fifths the board
+  grazed the baseline and read as a picture parked under a headline, which is
+  the failure this section exists to avoid. Nothing here is fixed with a text
+  shadow or a glow.
+- **The board is cropped to 2.16:1** rather than shown at the file's own 1.69:1.
+  The capture is a whole 1440 × 900 viewport and its bottom quarter is empty
+  board, so at its own aspect a fifth of the section's height was spent on
+  nothing, which is what made the hero read as thin.
+- **The card in flight is centred on the board's top-left corner**, which is the
+  mark's fourth shape at page scale. Out on its own over the `W`, as it first
+  was, it read as a stray tooltip, and it crossed the letterforms at their waist
+  — the one height that costs legibility. Here it pokes barely above the line
+  the board already occludes.
+- **Below `md` the sandwich is dropped entirely** and the section becomes a plain
+  stack: word, sentence, buttons, board. The card fragment is `hidden md:block`.
+  On a phone there is no room for a composition and floating fragments read as a
+  bug — and the board becomes `SHOTS.boardMobile`, because the desktop capture at
+  342 px is a seventh of the scale it was taken at and four columns of
+  unreadable grey are a worse advert than no picture. Both captures are
+  `priority`, and each declares a `1px` display width on the side of `md` it is
+  hidden on, so neither is preloaded where it is never painted.
+
+### The imagery
+
+Every picture of the product on this page is **a capture of the running app**,
+listed in `src/lib/shots.ts` with its real pixel dimensions so no component ever
+guesses an aspect ratio and re-shooting means editing one file. Desktop shots
+are taken at 1440 × 900 with a 2× pixel ratio, the phone one at 390 wide, all in
+the dark theme, cropped tight with no browser chrome and no invented address
+bar. `Shot` frames them the way the app frames its own panels: one hairline, a
+12 px corner, no drop shadow pretending the picture floats above the page it was
+taken from. The hero board is the one exception and it is not a contradiction:
+there the picture really is a layer with type behind it and a card in front of
+it, so the shadow states a relationship that exists rather than inventing one.
+
+The only non-product image is `public/marketing/texture.jpg`: one generated
+plate of cold raking light and dust over graphite, used once, behind the hero,
+at 22% and `mix-blend-screen`. It is there so the near-black reads as a surface
+rather than an absence. One photographic world, one texture world, nothing else.
+
+Under the hero it is one of **four plates of light**, and they are the only depth
+in that section that is not a real layer: the texture, one cold sheen behind the
+word, one lime bloom sitting exactly where the board cuts into the letterforms,
+and a floor that darkens the section's bottom edge so the composition stands on
+something. All four are `pointer-events-none`, none of them animates, and each
+is kept low enough (7–14%) to read as a lit surface rather than as a gradient.
+
+### The motion
+
+`MOTION_INTENSITY` is high and there is no animation library on this page. All
+of it is CSS, which is what keeps the whole page a server component: nothing
+listens to scroll, nothing measures, and the interpolation happens on the
+compositor.
+
+- **Load-in** is a timed sequence (`data-rise` / `data-settle` / `data-sweep`):
+  the word rises, the board settles up into it, the copy follows, then the card
+  in flight, and the accent rule above the copy draws itself in last.
+- **Scroll reveals** use `animation-timeline: view()` (`data-enter`,
+  `data-enter-stagger`). The stagger is a shift of `animation-range`, not a
+  delay, so it stays tied to the scrollbar rather than to a clock.
+- **One parallax**, and it is the one place the composition earns it: the board
+  drifts against the word (`data-drift`, `animation-timeline: scroll()`).
+- Every rule is wrapped in **both** `@supports (animation-timeline: …)` and
+  `prefers-reduced-motion: no-preference`, and the `@supports` is load-bearing:
+  an `animation` with `both` and no timeline support falls back to the
+  *document* timeline, which would fire every reveal on the page at once during
+  load. That failure is exactly what makes people reach for JavaScript here.
+  Where the timeline is unsupported the page is simply static, which is a
+  correct page.
+
+### The changelog
+
+`src/lib/changelog.ts` — one typed array, newest first, and the order of the
+array is the order on screen. It is **static content, not Convex**: it ships
+with the code, git versions it next to the change it describes, and a marketing
+page should not open a websocket to render a list of dates. No MDX, no
+frontmatter parser, no new dependency. If an entry ever needs rich text, that is
+the moment to reconsider, not now.
+
+```ts
+{ date: "2026-08-10", title: "Upozornění na komentáře", tags: ["Upozornění"],
+  items: ["Komentář dá vědět těm, koho zmiňuje, a řešiteli úkolu. …"] }
+```
+
+Two renderers, one array: `ChangelogSection` takes the first
+`CHANGELOG_PREVIEW_COUNT` for the landing page, `/zmeny` takes all of them
+through `groupChangelogByMonth`. Dates go through `formatIsoDate` /
+`formatIsoMonth` (`src/lib/format.ts`, pinned to UTC — a changelog date is a
+calendar day, not a moment, and `new Date("2026-08-10")` read west of Greenwich
+would print the ninth). Counts go through `plural`.
+
+**The rule, and it is part of the contract:** any change a person using the app
+would notice gets an entry appended in the same session as the change, before
+the verification gate runs. Entries are written for that person, so they say
+what is now different for them, never which file moved. An internal refactor
+with no user-visible effect deliberately gets nothing — a changelog that logs
+everything is a git log with worse formatting.
+
 ## Design system
+
+**One system, two surfaces.** The public page and the application are painted
+from the same tokens; there is no marketing palette. See **The public page**.
 
 - Tokens are **HSL channel triples** on `:root` / `.dark` in
   `src/app/globals.css`, exposed via `@theme inline` as `hsl(var(--token))`.
-- **One accent: indigo `243 75% 59%`** (dark: `243 75% 66%`) on `--primary` and
-  `--ring`. Everything else is neutral grayscale. `--accent` is a neutral hover
-  surface — never repaint it with the brand color.
-- `--radius: 0.625rem`; control heights `h-8/h-9`; icons `size-4`; cards
-  `rounded-xl`. Never nest a card inside a card.
-- Dark mode is **class-based and hand-rolled**: `@custom-variant dark (&:is(.dark *))`,
+- **The neutrals are cold graphite.** Every gray carries a little blue (hue
+  210-220), so the near-black reads as machined metal rather than as warm paper
+  turned down. Nothing is pure black or pure white at either end: the dark
+  background is `220 14% 5%`, the light one `210 22% 98%`.
+- **One accent: signal lime**, `74 86% 62%` in the dark theme and `76 88% 25%`
+  in the light one, on `--primary` and `--ring`. Two things about it are
+  deliberate:
+  - **The hue is one the status palette does not own.** Gray, blue, indigo,
+    violet, amber, orange, red, green and teal are all task statuses, so a brand
+    button painted in any of them would read as a status chip. Lime belongs to
+    the product and never to a column.
+  - **It inverts with the theme** instead of keeping one lightness: a bright
+    chip on graphite, a deep one on paper. That is what keeps a filled button
+    both legible and clearly bounded in both modes, which a single mid-lime
+    cannot be. Measured: dark fg 17.9:1 · muted 7.3:1 · ink-on-accent 13.4:1;
+    light fg 17.1:1 · muted 5.8:1 · ink-on-accent 5.1:1.
+  - `--accent` is still a neutral hover surface. Never repaint it with the brand
+    color.
+- **Geometry.** `--radius: 0.375rem` (6 px) and the ramp is written out rather
+  than derived from it: `sm 4 · md 5 · lg 6 · xl 8 · 2xl 12 · 3xl 16`. Controls
+  are 6, cards 8, dialogs and sheets 12. **Badges are tags at 5, not pills** —
+  the only fully round things in this system are the ones round for a reason,
+  which is a face and a switch. Never nest a card inside a card.
+- **Control heights: 28 / 32 / 36 / 40** (`xs / sm / default / lg`), one step up
+  from the shadcn default, which is what lets a 15 px label sit in a control
+  without touching its edges. Icons `size-4`.
+- **Elevation is for things that float and for nothing else.** A card is a
+  hairline `border-border` on `bg-card` with no shadow; only popovers, dropdowns,
+  dialogs and the drawer carry one, and it is tinted to the background hue
+  (`hsl(220 40% 2% / …)`), never neutral black.
+- **Two typefaces, both self-hosted from `src/app/fonts`, both variable, both a
+  single file**, both wired in `layout.tsx` with `next/font/local`. Nothing is
+  fetched from a font CDN at runtime or at build.
+  - **Switzer** (`--font-sans`, also `--font-heading`, `wght 100-900`) carries
+    everything a person reads. The 14 px label in the rail and the display word
+    on the public page are the same face at two ends of one axis, which is the
+    whole argument for a variable grotesque; it is a cold Swiss neutral that
+    holds at 800 on a poster without turning into the rounded-grotesk look. Its
+    385 glyphs cover Czech in full.
+  - **JetBrains Mono** (`--font-mono`, `wght 100-800`, subset to Latin and
+    Latin Extended) is for things a machine reads back, and for nothing else.
+  - `Switzer-400.woff` and `Switzer-800.woff` sit in the same folder and are
+    **not** used by the app: they exist only for Satori. See **The link
+    previews**.
+- **The type ramp inside the app is deliberately two sizes and a gap.** Exactly
+  one 28 px line per screen (the page title, through
+  `layout/page-header.tsx`, which exists so four screens cannot disagree about
+  it), and everything else is 15 px or smaller. That contrast is the hierarchy;
+  nothing in between competes. On the public page the same idea is stretched
+  further: one display word at up to 16 vw and then nothing above 3 rem.
+- Dark mode is **class-based and hand-rolled**: `@custom-variant dark (&:is(.dark *, .dark))`,
   a pre-hydration inline script in `layout.tsx` reading
   `localStorage["workeee-theme"]`, and `useTheme()` (`src/hooks/use-theme.ts`)
   which observes the `dark` class on `<html>` via `useSyncExternalStore`.
-  **No `next-themes`.**
-- Single typeface: Geist Sans (`--font-sans`, also `--font-heading`). Headings
-  differ by weight, not family.
+  **No `next-themes`.** The variant matches `.dark` itself and not only its
+  descendants, which is what lets the marketing layout carry the class on its
+  own root.
 - Breakpoint contract: `lg:` (1024 px) splits the desktop sidebar from the
   mobile drawer. One custom breakpoint exists, **`board:` (1408 px)**, declared
   in `globals.css` — it is not about the shell but about the board; see
@@ -1049,52 +1379,76 @@ pnpm exec convex run notifications:flush '{"userId": "..."}'
   can ever be is 1088 px. `main` also carries **`min-w-0`** — see
   **How wide the board has to be**, it is the difference between the board
   scrolling and the page scrolling.
+- A project with no icon gets a **monochrome** chip with its first letter, not a
+  deterministic color. A color per project would put a sixth and seventh hue on
+  a screen that already spends its color on statuses and its accent on the
+  brand, and it would say something about the project nobody chose. A project
+  that wants an identity gets one three ways, all explicit.
 - "Nothing here (yet)" and "this address leads nowhere" share one component,
   `src/components/layout/empty-state.tsx` — a dashed panel with a heading, one
   sentence and the action or link that unblocks the person. The dashboard, a
   missing project or task, the organization settings guards and the 404 page all
-  use it, so all five read the same.
+  use it, so all five read the same. It is also **the only dashed edge in the
+  product**, so a dashed edge always means "a place something goes".
 
 ## The mark, the icons and the link previews
 
 ### The mark
 
-`src/app/icon.svg` is the only drawing of the brand: the indigo tile
-(`#4F46E5`, the light theme's `--primary`, radius `14.5/64` ≈ the platform
-squircle) and a white **W**. The W is a **filled letterform** — flat top
-terminals, a pointed apex at cap height, pointed feet — not a stroked zigzag,
-so it reads as a letter at 96 px and still as a letter at 16. The `stroke` in
-the same white is a 1.5-unit softening of the vertices; sharp needles go wispy
-once the tile is 16 px, and the softness is the same idea as `--radius`.
+`src/app/icon.svg` is the only drawing of the brand, and it is the board reduced
+to four shapes: **three bars descending left to right** — the three statuses
+every project is seeded with, drawn as how full each column is — and a fourth
+shape detached above the shortest one, which is the card in flight. That fourth
+shape is the whole mark. Without it this is a bar chart; with it, it is a board,
+and it is the one thing this product actually does.
+
+Geometry on a 64 grid: bars 12 wide, gaps 6, baseline at 54, corner 3 on all
+four shapes so nothing inside the glyph is rounder than anything else. Graphite
+tile `#0B0C0F` at radius `15/64` ≈ the platform squircle, glyph `#CBF14B` —
+which are the dark theme's `--background` and `--primary` spelled out.
+
+**The tile exists only so a favicon has a field to sit on.** Inside the product
+the mark is the bare glyph in `currentColor`
+(`src/components/brand/mark.tsx`), used by the rail, the auth and invite
+screens, the 404 and the public page's header and footer, so it takes the color
+of whatever it sits beside. **A third copy lives inside `src/lib/og.tsx`** as a
+data URI, because Satori is not the DOM. All three carry the same four
+rectangles and change together.
 
 The two raster files beside it are **rasterized from that SVG** and have no
 other source. Chrome is the rasterizer, because it is the renderer the icon has
-to survive anyway:
+to survive anyway, and the ICO container is assembled with Pillow:
 
 ```bash
 # 16 / 32 / 48 for the .ico, 180 (with the rounded corners removed) for iOS
 chrome --headless --default-background-color=00000000 \
        --screenshot=out.png --window-size=N,N --force-device-scale-factor=1 wrapper.html
+python3 -c "from PIL import Image; Image.open('f48.png').save('favicon.ico', sizes=[(48,48),(32,32),(16,16)])"
 ```
 
 - `favicon.ico` — 16 · 32 · 48 PNGs in an ICO container. It exists because
   crawlers, chat clients and feed readers still ask for `/favicon.ico` by hand.
-  It replaced `create-next-app`'s 25 931-byte default, which had been shipping
-  the Next.js logo as this product's icon.
 - `apple-icon.png` — 180 × 180, **full bleed, no rounded corners**: iOS applies
   its own mask, and our corners under its mask would show as pale notches.
 
 ### The link previews
 
-`src/lib/og.tsx` draws every unfurl: 1200 × 630, the dark theme's colors spelled
-out (Satori never sees `globals.css`), the mark and the wordmark at the top, one
-big line at the bottom, an optional chip on the right and an optional muted line
-under the title. Two callers, and neither adds a design:
+`src/lib/og.tsx` draws every unfurl: 1200 × 630 of the dark theme's colors
+spelled out (Satori never sees `globals.css`), the mark and the wordmark at the
+top, an optional tag on the right, and at the bottom one short accent rule — the
+same rule the rail draws beside the project you have open — over one big line of
+Switzer Extrabold and an optional muted line under it. Three callers, and none
+of them adds a design:
 
 | File | What it says |
 |---|---|
-| `src/app/opengraph-image.tsx` | "Interní aplikace pro týmy, projekty a úkoly." — inherited by every route |
+| `src/app/opengraph-image.tsx` | "Interní aplikace pro týmy, projekty a úkoly." — inherited by every route without a closer one |
+| `src/app/(marketing)/o-aplikaci/opengraph-image.tsx` | "Projekty a úkoly pro tým, které si hostujete sami." + one muted line — the landing page only; `/zmeny` inherits the root one |
 | `src/app/join/[code]/opengraph-image.tsx` | chip "Pozvánka" + "Připojte se k organizaci" |
+
+The landing page's copy sits in its own file rather than in the root one because
+of the inheritance rule below: a page that declares its own `openGraph` keeps
+only the image **co-located with it**.
 
 The invite page gets its own because **an invite link is the one address people
 paste into a chat**. It deliberately names no organization: the unfurl is cached
@@ -1110,15 +1464,24 @@ and re-shared by the chat, not by the person who was invited, and
 - `openGraph` in a child's metadata **replaces** the layout's rather than merging
   into it, which is why the join page repeats `siteName` / `locale` / `type` in
   full. It leaves `images` out on purpose — that omission is what lets the
-  `opengraph-image.tsx` beside it supply the picture.
-- Geist is fetched from Google Fonts at render time and the root image is
-  therefore **prerendered at build**, the same network the app already needs for
-  `next/font`. If the fetch fails the fonts are dropped and `ImageResponse`
-  falls back to its bundled face — a preview in the wrong typeface still beats
-  no preview.
+  `opengraph-image.tsx` **beside it** supply the picture. Beside it is the load
+  bearing part: declaring `openGraph` also drops the image an *ancestor* segment
+  would have contributed, so a page with its own block needs its own file in the
+  same folder or it ships with no `og:image` at all.
+- **The type is read off disk, not fetched.** Satori parses TTF, OTF and WOFF
+  and chokes on WOFF2, and it renders a variable font at its default instance
+  only — which is why `Switzer-400.woff` and `Switzer-800.woff` sit beside the
+  variable file the app uses and exist for this and nothing else. Reading them
+  locally also makes an unfurl independent of a font CDN being up at the moment
+  somebody pastes a link. If the read fails the fonts are dropped and
+  `ImageResponse` falls back to its bundled face: a preview in the wrong
+  typeface still beats no preview.
+- **`next.config.ts#outputFileTracingIncludes` traces those two files** into the
+  serverless bundle. The invite preview is rendered on demand rather than at
+  build, so without the entry it would silently ship in the fallback face.
 - The mark is spelled out a second time inside `og.tsx` as a data URI, because
   Satori is not the DOM and cannot import `icon.svg`. **The two carry the same
-  path and change together.**
+  four rectangles and change together.**
 
 ## Locale
 
@@ -1185,7 +1548,8 @@ Day-one decisions:
    gets is decided by the invite they accepted — organization invite → `full`,
    project invite → `limited`. Enforced server-side in `convex/lib/access.ts`;
    the UI only mirrors it. See **Access model**.
-4. **Accent:** indigo. **Typeface:** Geist Sans only.
+4. **Accent:** signal lime, one hue no task status owns. **Typefaces:** Switzer
+   for everything a person reads, JetBrains Mono for what a machine reads back.
 5. **Locale:** Czech UI, English code.
 6. **Audited actions**: organization created/renamed, invite
    created/accepted/revoked, member role changed/removed, project
@@ -1261,10 +1625,154 @@ Day-one decisions:
   comment itself is quoted, and every label in the e-mail was rewritten
   verbless because Czech past tense is gendered and the app does not know
   anybody's gender.
-- **Later.** List view, due dates, filters in the URL, in-app notification bell,
-  comment and mention notifications, activity timeline, audit log surface.
+- **Phase 13 (done).** The product has a front door. `/o-aplikaci` is a public,
+  static landing page (it briefly claimed `/` and pushed the app to `/prehled`,
+  which broke every existing user's habit of typing the base URL — the app took
+  `/` back before the change shipped, and `/prehled` survives as a redirect),
+  with the Kanban board and the task drawer rebuilt as a real component preview
+  rather than a screenshot, the whole self-hosting sequence with its real
+  commands and variable names, and the MIT licence the page now truthfully
+  claims. A signed-in visitor on it gets a link, not a redirect.
+  `src/lib/changelog.ts` became the one place a user-visible change is written
+  down, rendered both on the landing page and on `/zmeny`, and keeping it
+  current is now part of this file's contract.
+- **Phase 14 (done).** One identity, both surfaces. Everything visual was
+  redrawn from zero: cold graphite neutrals with a signal-lime accent that no
+  task status owns, a 6 px control radius with the ramp written out, control
+  heights one step taller, self-hosted Switzer and JetBrains Mono replacing
+  Geist, and a new mark — three descending bars and the card in flight above the
+  last one — carried into `icon.svg`, the favicon, the iOS icon, the app itself
+  and the link previews, which now read their type off disk instead of fetching
+  it. The public page was rebuilt on the app's own dark theme rather than on a
+  palette of its own, around an oversized `WORKEEE` that real screenshots of the
+  product pass through, with the whole scroll choreography done in CSS so the
+  page stayed a server component. Two defects fell out of photographing the app:
+  signing up bounced back to the sign-in screen, and a four-column board was cut
+  off with nothing saying so.
+- **Phase 15 (done).** What is new, visible without opening anything: a task
+  card carries the number of unread comments (or a dot when the task was never
+  opened), a project's row in the rail and its card on the dashboard say how
+  many tasks need a look, and the rail gained "Upozornění" — an in-app feed of
+  the same four events the e-mail digest sends, with its unread count on the
+  link. Read state is one `taskSeen` row per person per task, written when the
+  drawer is open; everything unread is counted live against it, never stored.
+  Opening a task clears every badge it holds anywhere at once.
+- **Phase 16 (done).** The hero, which was the right idea executed timidly: the
+  word only ever filled the column at one viewport width, the board grazed it
+  instead of crossing it, a quarter of that board was empty pixels, the card in
+  flight sat out on its own like a stray tooltip, and on a phone the whole thing
+  was four columns of unreadable grey. It is one container and one unit now
+  (`cqi`), the board cuts a third of the way into the letterforms and is cropped
+  to where it stops having content, the card straddles its top-left corner, the
+  copy column is narrower than the hole it used to leave and says the two things
+  the page's first screen was not saying, and a phone gets the app's own phone
+  layout. See **The interleave**.
+- **Later.** List view, due dates, filters in the URL, activity timeline,
+  audit log surface.
 
 ## Continual learning
+
+- **Next 16 renamed middleware: the file is `src/proxy.ts` with a default
+  export**, and it is the right place for exactly one kind of decision — which
+  page answers a URL — never for authorization, which stays in Convex. The
+  session check there is `getSessionCookie` from `better-auth/cookies`:
+  optimistic (presence, not validity), zero round trips, and the failure mode
+  of a stale cookie is the app shell politely asking the person to sign in.
+- **Next 16 dev caches optimized images under `.next/dev/cache/images`**, not
+  `.next/cache/images`, and it does not revalidate against the source file's
+  mtime. Replace a picture in `public/` and the page keeps serving the old one
+  through `next/image` — including its old intrinsic size, so the layout does
+  not change either and it looks like the new file never landed. Deleting
+  `.next/cache` does nothing. Delete `.next/dev/cache/images` and restart. An
+  hour went into this one; the tell is that `curl`ing the raw `/public` path
+  returns the new bytes while `/_next/image?...` answers `X-Nextjs-Cache: HIT`.
+
+- **A second palette is a second design system, however carefully it is named.**
+  The public page used to carry its own `--mk-*` tokens so it could be near-black
+  while the app was themable. It worked, and it also meant every screenshot of
+  the product landed on the page as a rectangle of slightly different greys. The
+  fix was to delete the palette and put the app's own `dark` class on the
+  marketing layout: same tokens, same greys, and a capture now dissolves into the
+  page. The rule that came out of it: if two surfaces are one product, they get
+  one set of tokens, and "the page needs to be dark when the app is light" is a
+  question about where the class goes, not about how many palettes there are.
+- **Pick the brand accent from a hue the product's data does not already use.**
+  The old indigo was also a task-status color, so a primary button and a status
+  chip were the same object at a glance. The status palette owns gray, blue,
+  indigo, violet, amber, orange, red, green and teal; the brand took lime, which
+  is the largest gap left in the wheel. This is a functional constraint, not a
+  taste one.
+- **An accent that works on near-black usually does not work on near-white, and
+  the answer is to let it invert with the theme.** A bright lime button on a
+  white page has a 1.2:1 boundary against its background — legible label,
+  invisible button. Holding the hue and moving the lightness (62% dark, 25%
+  light) keeps one accent while both modes get a real edge.
+- **Satori renders a variable font at its default instance.** Handing it the
+  same `wght 100-900` file the app uses gets you a display headline at weight
+  400 with no error and no warning. It also cannot read WOFF2, which is the only
+  thing a font CDN will serve a modern user agent. Two static WOFF cuts on disk
+  solve both, and reading them locally removes a network call from a code path
+  that runs when somebody pastes a link into a chat.
+- **`fs.readFile` returns a Buffer that is a view into a shared pool**, so
+  `buffer.buffer` is not the file — it is up to 8 kB of whatever else Node
+  happened to read. Font parsers accept the Buffer directly; reaching for
+  `.buffer` to "get an ArrayBuffer" silently hands over the wrong bytes.
+- **A scroll-driven animation with `both` and no timeline support falls back to
+  the document timeline.** Every reveal on the page then fires at once during
+  load, which looks exactly like a broken library and is why people conclude
+  scroll-driven CSS "is not ready". `@supports (animation-timeline: view())`
+  around the whole block is not optional, and with it the unsupported case
+  degrades to a static page, which is a correct page.
+- **A `vw` is not the column, and a `clamp()` cap is where display type quietly
+  gives up.** The hero word was `clamp(3rem, 17.4vw, 15rem)` inside a
+  `max-w-[84rem]` column: below the cap it tracked the viewport while the thing
+  it had to fill was the column, and above it — from about 1400 px, which is
+  most desktops — it stopped growing while the column did not. The symptom is
+  not "the type is small", it is that the composition looks laid out for a
+  narrower screen and nobody can say why. `container-type: inline-size` and one
+  `cqi` fix it exactly, and the overlap and the floating fragment given in the
+  same unit then hold their proportions to the type instead of to the window.
+- **An overlap that respects legibility too much stops being an overlap.** The
+  board crossed the bottom fifth of the letterforms, which is far enough to be
+  deliberate and not far enough to be seen: the eye read a picture under a
+  headline, which is the one thing the composition existed not to be. A third is
+  where it starts reading as one image. The z-sandwich was never the weak part —
+  the number was.
+- **A screenshot of your own app has padding in it, and it is your padding.** The
+  hero capture is a whole 1440 × 900 viewport whose bottom quarter is empty
+  board, so at the file's own aspect ratio a fifth of the section's height went
+  to nothing and the section read as thin. `object-cover` with a stated aspect
+  is the fix, and the cut reads as "the board carries on past the fold" —
+  which is true.
+- **A desktop capture shrunk to a phone is not a picture of your product.** At
+  342 px the four-column board is a seventh of the scale it was taken at:
+  legible as a shape, unreadable as an interface, and a worse advert than no
+  image. Two `Shot`s and mutually exclusive `sizes` — each declaring a `1px`
+  display width on the side of the breakpoint it is hidden on — let both be
+  `priority` without either being preloaded where it is never painted.
+- **The interleave needs the word split, not clipped.** A second copy of the
+  headline clipped by a percentage works until the type wraps or the font
+  changes. Splitting `WORKEEE` into two adjacent spans and giving the second one
+  a higher `z-index` is exact at every width, needs no measurement, and is still
+  one word to a screen reader and to anything that copies the text.
+- **Photographing your own app finds bugs that using it does not.** Two of them
+  came out of setting up the shots and neither was a visual one: signing up
+  landed on `/prihlaseni` because `router.push` raced the Convex token, and a
+  four-status board was cut off at 1440 px with nothing indicating the strip
+  scrolled. Both had been there for weeks.
+- **After an auth call, navigate the document.** The cookie is set and the Convex
+  token is not, and a client-side push lands in that window, where `AuthGuard`
+  correctly concludes nobody is signed in. Anything that gates on a *derived*
+  auth state needs a full load, or a gate that can tell "not yet" from "no".
+- **A fade on a scroller has to know whether there is anything left to scroll.**
+  A permanent mask on the right edge says "there is more" on a board that fits,
+  which is worse than no affordance. `animation-timeline: scroll(self inline)`
+  ties the mask to the scroll position with no listener and no measurement.
+- **An emoji picker with a fixed grid will not have the emoji you asked for.**
+  Seeding the app for photography asked for a leaf and an antenna and got a
+  seedling and a phone, because the grid is 48 items chosen by hand. That is the
+  right trade (see the note about validating shape rather than duplicating a
+  list), but anything scripted against the picker has to accept a substitute.
 
 - `shadcn` v4 dropped `--base-color` / `new-york`; `-b` now selects the
   primitive library (`radix` / `base` / `aria`) and themes come from presets.
@@ -1530,6 +2038,26 @@ Day-one decisions:
   not a guarantee. They live in `pnpm-workspace.yaml` now. The tell was a `[WARN]`
   on every single pnpm command, which is exactly the kind of line that stops
   being read after the tenth time.
+- **Headless Chrome on macOS clamps the window to a 500 px minimum**, and
+  `--screenshot` then crops that render to whatever `--window-size` asked for.
+  A 390 px shot of a page laid out at 500 px looks exactly like horizontal
+  overflow: text sliced off at the right edge, on every section at once. Two
+  minutes went into hunting a layout bug the page never had. `--dump-dom` on a
+  four-line file that prints `innerWidth` settles it, and a real narrow viewport
+  needs `Emulation.setDeviceMetricsOverride` over the DevTools protocol
+  (`--remote-debugging-port`, and Node has had a global `WebSocket` for a while
+  now) rather than a flag.
+- A metadata file convention is inherited, **a declared `openGraph` block is
+  not merged**. Writing `openGraph` on a page throws away the `og:image` its
+  parent segment contributed, and only an `opengraph-image.tsx` in the page's
+  own folder survives. The failure is silent: the page renders, the title and
+  description are right, and the unfurl is a bare link.
+- **A hairline grid has to be pulled out past its own text.** Cells need inline
+  padding so the words do not touch the vertical rule, which then pushes the
+  first column out of alignment with the section heading above it. A negative
+  margin on the grid equal to the padding the cells re-apply fixes both at once,
+  and the rules end up running slightly wider than the text they separate, which
+  is what they should have been doing anyway.
 - **A file input's `accept` needs extensions, not only MIME types.** `File.type`
   comes from the operating system, and for `.ico` the three browsers disagree
   (`image/x-icon`, `image/vnd.microsoft.icon`, or nothing at all). A list of

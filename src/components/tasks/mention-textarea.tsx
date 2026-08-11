@@ -22,7 +22,7 @@ export type MentionMember = {
 const MAX_SUGGESTIONS = 6;
 
 /**
- * An auto-growing textarea that shows mentions as indigo chips.
+ * An auto-growing textarea that shows mentions as accent-colored chips.
  *
  * The chips are a backdrop: a div in normal flow renders the text with the
  * mention spans styled and therefore decides the height, and the textarea sits
@@ -144,7 +144,7 @@ export function MentionTextarea({
     <div className="relative">
       <div
         className={cn(
-          "relative rounded-lg border border-input bg-background transition-colors",
+          "relative rounded-lg border border-input bg-transparent transition-colors dark:bg-card/60",
           "focus-within:border-ring focus-within:ring-3 focus-within:ring-ring/30",
           disabled && "opacity-60",
         )}

@@ -30,7 +30,7 @@ import {
   TASK_STATUS_COLORS,
   TASK_STATUS_COLOR_LABEL,
 } from "@/lib/task-status-colors";
-import type { BoardStatus, BoardTask } from "@/lib/tasks";
+import type { BoardStatus, BoardTask, TaskUnread } from "@/lib/tasks";
 import { cn } from "@/lib/utils";
 
 export function TaskColumn({
@@ -41,6 +41,7 @@ export function TaskColumn({
   dragging,
   showEmptyHint,
   selectedTaskId,
+  unreadByTask,
   onOpenTask,
 }: {
   projectId: Id<"projects">;
@@ -50,6 +51,7 @@ export function TaskColumn({
   dragging: "task" | "column" | null;
   showEmptyHint: boolean;
   selectedTaskId: string | null;
+  unreadByTask: Map<Id<"tasks">, TaskUnread>;
   onOpenTask: (taskId: Id<"tasks">) => void;
 }) {
   const updateStatus = useMutation(api.taskStatuses.update);
@@ -102,11 +104,11 @@ export function TaskColumn({
         ref={setActivatorNodeRef}
         {...attributes}
         {...listeners}
-        className="flex h-8 touch-none items-center gap-2 rounded-lg px-1 outline-none focus-visible:ring-3 focus-visible:ring-ring/50 active:cursor-grabbing"
+        className="flex h-8 touch-none items-center gap-2 rounded-md px-1.5 outline-none focus-visible:ring-3 focus-visible:ring-ring/40 active:cursor-grabbing"
       >
         <StatusDot color={status.color} />
-        <span className="truncate text-sm font-medium">{status.name}</span>
-        <span className="text-xs tabular-nums text-muted-foreground">
+        <span className="truncate text-[0.8125rem] font-medium">{status.name}</span>
+        <span className="font-mono text-[0.6875rem] tabular-nums text-muted-foreground">
           {tasks.length}
         </span>
         <DropdownMenu>
@@ -163,12 +165,12 @@ export function TaskColumn({
       <div
         ref={setDropRef}
         className={cn(
-          "flex max-h-[60dvh] flex-col gap-2 overflow-y-auto rounded-lg px-1 py-1 transition-colors",
+          "flex max-h-[60dvh] flex-col gap-2 overflow-y-auto rounded-lg p-1 transition-colors",
           // An empty column still needs a body to drop a card on; a column with
           // cards must not grow a dead strip between the last card and the
           // "Přidat úkol" row.
           tasks.length === 0 && "min-h-20",
-          isOver && dragging === "task" && "bg-accent/60",
+          isOver && dragging === "task" && "bg-primary/[0.07] inset-ring-1 inset-ring-primary/25",
         )}
       >
         <SortableContext
@@ -181,12 +183,13 @@ export function TaskColumn({
               task={task}
               selected={task._id === selectedTaskId}
               columnDragging={dragging === "column"}
+              unread={unreadByTask.get(task._id)}
               onOpen={() => onOpenTask(task._id)}
             />
           ))}
         </SortableContext>
         {showEmptyHint ? (
-          <p className="px-1 text-xs text-muted-foreground">Zatím žádné úkoly</p>
+          <p className="px-2 py-1 text-xs text-muted-foreground">Zatím žádné úkoly</p>
         ) : null}
       </div>
 

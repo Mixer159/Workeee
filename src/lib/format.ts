@@ -14,12 +14,41 @@ const dateFormat = new Intl.DateTimeFormat("cs-CZ", {
   year: "numeric",
 });
 
+/**
+ * The two formatters the changelog uses. They are pinned to UTC on purpose: a
+ * changelog date is a calendar day, not a moment, and `new Date("2026-08-10")`
+ * is midnight UTC — read in a timezone behind Greenwich it would print the
+ * ninth.
+ */
+const isoDateFormat = new Intl.DateTimeFormat("cs-CZ", {
+  day: "numeric",
+  month: "numeric",
+  year: "numeric",
+  timeZone: "UTC",
+});
+
+const isoMonthFormat = new Intl.DateTimeFormat("cs-CZ", {
+  month: "long",
+  year: "numeric",
+  timeZone: "UTC",
+});
+
 export function formatDateTime(timestamp: number): string {
   return dateTimeFormat.format(timestamp);
 }
 
 export function formatDate(timestamp: number): string {
   return dateFormat.format(timestamp);
+}
+
+/** `"2026-08-10"` → `"10. 8. 2026"`. */
+export function formatIsoDate(iso: string): string {
+  return isoDateFormat.format(new Date(`${iso}T00:00:00Z`));
+}
+
+/** `"2026-08"` or `"2026-08-10"` → `"srpen 2026"`. */
+export function formatIsoMonth(iso: string): string {
+  return isoMonthFormat.format(new Date(`${iso.slice(0, 7)}-01T00:00:00Z`));
 }
 
 /**

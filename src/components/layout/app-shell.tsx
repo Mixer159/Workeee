@@ -14,8 +14,8 @@ import {
 } from "@/components/ui/sheet";
 
 /**
- * Desktop: fixed left sidebar. Mobile (< lg): the same sidebar in a drawer
- * behind a hamburger in the top bar.
+ * Desktop: fixed left rail. Mobile (< lg): the same rail in a drawer behind a
+ * hamburger in the top bar.
  */
 export function AppShell({ children }: { children: ReactNode }) {
   const [mobileOpen, setMobileOpen] = useState(false);
@@ -26,10 +26,15 @@ export function AppShell({ children }: { children: ReactNode }) {
         <SidebarContent />
       </aside>
 
-      <header className="sticky top-0 z-20 flex h-14 items-center gap-2 border-b bg-background/80 px-3 backdrop-blur lg:hidden">
+      <header className="sticky top-0 z-20 flex h-14 items-center gap-2 border-b border-border bg-background/85 px-3 backdrop-blur-md lg:hidden">
         <Sheet open={mobileOpen} onOpenChange={setMobileOpen}>
           <SheetTrigger asChild>
-            <Button type="button" variant="ghost" size="icon-lg" aria-label="Otevřít menu">
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon-lg"
+              aria-label="Otevřít menu"
+            >
               <MenuIcon />
             </Button>
           </SheetTrigger>

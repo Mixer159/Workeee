@@ -106,7 +106,17 @@ export function commentBodyText(segments: CommentSegment[]): string {
     .join("");
 }
 
-/** Drops empty text segments and merges neighbours, so `""` normalizes away. */
+/**
+ * Drops empty text segments, merges neighbours so `""` normalizes away, and
+ * trims the whitespace at the two ends of the whole body.
+ *
+ * The trim is not tidiness. The composer's member picker inserts `@Jméno ` with
+ * a trailing space, because that is what lets somebody keep typing after a
+ * mention — so a comment that *ends* on a mention stores a space nobody typed
+ * and renders with a gap before the end of the line. Trimming here rather than
+ * in the composer means the server normalizes it too, and a body assembled by
+ * anything else gets the same treatment.
+ */
 export function compactCommentBody(segments: CommentSegment[]): CommentSegment[] {
   const compacted: CommentSegment[] = [];
   for (const segment of segments) {
@@ -124,7 +134,19 @@ export function compactCommentBody(segments: CommentSegment[]): CommentSegment[]
     }
     compacted.push(segment);
   }
-  return compacted;
+
+  const first = compacted[0];
+  if (first?.type === "text") {
+    first.text = first.text.replace(/^\s+/, "");
+  }
+  const last = compacted[compacted.length - 1];
+  if (last?.type === "text") {
+    last.text = last.text.replace(/\s+$/, "");
+  }
+
+  return compacted.filter(
+    (segment) => segment.type !== "text" || segment.text.length > 0,
+  );
 }
 
 /** The distinct user ids a body mentions. */

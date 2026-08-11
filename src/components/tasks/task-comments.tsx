@@ -1,7 +1,7 @@
 "use client";
 
-import { useState } from "react";
-import { useQuery } from "convex/react";
+import { useEffect, useState } from "react";
+import { useMutation, useQuery } from "convex/react";
 import { api } from "@convex/_generated/api";
 import type { Id } from "@convex/_generated/dataModel";
 import { CommentComposer } from "@/components/tasks/comment-composer";
@@ -24,7 +24,24 @@ export function TaskComments({
 }) {
   const comments = useQuery(api.comments.listByTask, { taskId });
   const now = useNow();
+  const markSeen = useMutation(api.taskSeen.markSeen);
   const [preview, setPreview] = useState<LightboxImage | null>(null);
+
+  // "I am looking at this task" — what the unread badges and the bell count
+  // against. Once when the stream has loaded, and again for every comment that
+  // arrives while the panel is open: being on the task *is* reading them. A
+  // Convex mutation reference is stable, so this never fires from a re-render.
+  const loaded = comments !== undefined;
+  const latestCommentAt = comments?.[comments.length - 1]?.createdAt ?? 0;
+  useEffect(() => {
+    if (!loaded) {
+      return;
+    }
+    markSeen({ taskId }).catch(() => {
+      // Read state is best effort — if the task just became unreachable, the
+      // panel above this section is already saying so.
+    });
+  }, [taskId, loaded, latestCommentAt, markSeen]);
 
   return (
     <section className="flex flex-col gap-4">

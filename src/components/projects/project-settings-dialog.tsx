@@ -170,7 +170,6 @@ export function ProjectSettingsDialog({
           <Separator />
 
           <ProjectIconPicker
-            seed={project._id}
             name={project.name}
             emoji={project.emoji}
             imageUrl={project.iconUrl}

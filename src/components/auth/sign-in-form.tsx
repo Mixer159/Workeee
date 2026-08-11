@@ -2,7 +2,6 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
 import { Loader2Icon } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -17,13 +16,13 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { authClient } from "@/lib/auth-client";
 import { authErrorMessage } from "@/lib/auth-errors";
+import { goAfterAuth } from "@/lib/auth-redirect";
 
 /**
  * `inviteCode` carries a pending invite through the auth detour: after signing
  * in we land back on the join page instead of the dashboard.
  */
 export function SignInForm({ inviteCode }: { inviteCode?: string }) {
-  const router = useRouter();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [pending, setPending] = useState(false);
@@ -43,7 +42,7 @@ export function SignInForm({ inviteCode }: { inviteCode?: string }) {
       toast.error(authErrorMessage(error));
       return;
     }
-    router.push(inviteCode ? `/join/${encodeURIComponent(inviteCode)}` : "/");
+    goAfterAuth(inviteCode);
   };
 
   return (
@@ -64,7 +63,6 @@ export function SignInForm({ inviteCode }: { inviteCode?: string }) {
               required
               value={email}
               onChange={(event) => setEmail(event.target.value)}
-              className="h-9"
             />
           </div>
           <div className="flex flex-col gap-1.5">
@@ -76,7 +74,6 @@ export function SignInForm({ inviteCode }: { inviteCode?: string }) {
               required
               value={password}
               onChange={(event) => setPassword(event.target.value)}
-              className="h-9"
             />
           </div>
           <Button type="submit" size="lg" disabled={pending} className="w-full">

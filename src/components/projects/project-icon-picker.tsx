@@ -17,7 +17,6 @@ import { cn } from "@/lib/utils";
  * settings dialog writes it immediately, without the two growing two pickers.
  */
 export function ProjectIconPicker({
-  seed,
   name,
   emoji,
   imageUrl,
@@ -27,7 +26,6 @@ export function ProjectIconPicker({
   onSelectFile,
   onClear,
 }: {
-  seed: string;
   name: string;
   emoji: string | null;
   imageUrl: string | null;
@@ -46,7 +44,6 @@ export function ProjectIconPicker({
 
       <div className="flex items-center gap-3">
         <ProjectIcon
-          seed={seed}
           name={name}
           emoji={emoji}
           iconUrl={imageUrl}
@@ -110,7 +107,7 @@ export function ProjectIconPicker({
 
       <p className="text-xs text-muted-foreground">
         Vyberte emoji, nebo nahrajte čtvercový obrázek (PNG, JPG, WEBP, GIF,
-        SVG nebo ICO), nejvýš 2 MB — SVG 32 kB.
+        SVG nebo ICO), nejvýš 2 MB. SVG do 32 kB.
       </p>
     </div>
   );

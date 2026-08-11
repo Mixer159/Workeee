@@ -49,7 +49,7 @@ export function TaskQuickAdd({
       <button
         type="button"
         onClick={() => setOpen(true)}
-        className="flex h-9 w-full items-center gap-1.5 rounded-lg px-3 text-sm text-muted-foreground transition-colors outline-none hover:bg-accent hover:text-foreground focus-visible:ring-3 focus-visible:ring-ring/50"
+        className="flex h-9 w-full items-center gap-1.5 rounded-lg px-2.5 text-sm text-muted-foreground transition-colors outline-none hover:bg-accent hover:text-foreground focus-visible:ring-3 focus-visible:ring-ring/40"
       >
         <PlusIcon className="size-4" />
         Přidat úkol
@@ -66,7 +66,7 @@ export function TaskQuickAdd({
         maxLength={200}
         aria-label={`Nový úkol ve stavu ${statusName}`}
         placeholder="Název úkolu"
-        className="h-9"
+        className="h-9 text-sm"
         onChange={(event) => setTitle(event.target.value)}
         onKeyDown={(event) => {
           if (event.key === "Escape") {

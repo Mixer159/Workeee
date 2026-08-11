@@ -8,6 +8,7 @@ import { SettingsIcon } from "lucide-react";
 import { api } from "@convex/_generated/api";
 import type { Id } from "@convex/_generated/dataModel";
 import { EmptyState } from "@/components/layout/empty-state";
+import { PageHeader } from "@/components/layout/page-header";
 import { ProjectIcon } from "@/components/projects/project-icon";
 import { ProjectSettingsDialog } from "@/components/projects/project-settings-dialog";
 import { TaskBoard } from "@/components/tasks/task-board";
@@ -59,9 +60,11 @@ export function ProjectScreen({ projectId }: { projectId: string }) {
 
   if (project === undefined) {
     return (
-      <div className="flex flex-col gap-4">
-        <Skeleton className="h-9 w-64" />
-        <Skeleton className="h-4 w-80" />
+      <div className="flex flex-col gap-8">
+        <div className="border-b border-border pb-5">
+          <Skeleton className="h-7 w-64" />
+        </div>
+        <Skeleton className="h-64 w-full rounded-xl" />
       </div>
     );
   }
@@ -80,32 +83,37 @@ export function ProjectScreen({ projectId }: { projectId: string }) {
   }
 
   return (
-    <div className="flex flex-col gap-6">
-      <div className="flex flex-wrap items-center gap-3">
-        <ProjectIcon
-          seed={project._id}
-          name={project.name}
-          emoji={project.emoji}
-          iconUrl={project.iconUrl}
-          className="size-9 rounded-lg text-base"
-        />
-        <h1 className="font-heading text-2xl font-semibold tracking-tight">
-          {project.name}
-        </h1>
-        {project.archived ? <Badge variant="outline">Archivovaný</Badge> : null}
-        {project.canManage ? (
-          <Button
-            type="button"
-            variant="outline"
-            size="lg"
-            className="ml-auto"
-            onClick={() => setSettingsOpen(true)}
-          >
-            <SettingsIcon />
-            Nastavení
-          </Button>
-        ) : null}
-      </div>
+    <div className="flex flex-col gap-8">
+      <PageHeader
+        title={
+          <span className="flex items-center gap-3">
+            {project.name}
+            {project.archived ? (
+              <Badge variant="outline">Archivovaný</Badge>
+            ) : null}
+          </span>
+        }
+        leading={
+          <ProjectIcon
+            name={project.name}
+            emoji={project.emoji}
+            iconUrl={project.iconUrl}
+            className="size-9 rounded-lg text-sm"
+          />
+        }
+        actions={
+          project.canManage ? (
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => setSettingsOpen(true)}
+            >
+              <SettingsIcon />
+              Nastavení
+            </Button>
+          ) : null
+        }
+      />
 
       <TaskBoard
         projectId={project._id}

@@ -20,103 +20,125 @@
 @import "@blocknote/shadcn/style.css";
 @source "../../node_modules/@blocknote/shadcn/dist/blocknote-shadcn.js";
 
-@custom-variant dark (&:is(.dark *));
+/*
+ * `.dark` is the app's theme class on `<html>`. `.workeee-marketing` carries it
+ * too, so the public page is not a second palette pretending to be one system:
+ * it is literally the app's dark theme, which is why a screenshot of the board
+ * melts into the page instead of sitting on it as a rectangle.
+ */
+@custom-variant dark (&:is(.dark *, .dark));
 
 /*
  * Design tokens — HSL channel triples, consumed through `@theme inline` below.
- * Neutral grayscale surfaces + exactly one saturated accent (indigo).
- * `--accent` is a neutral hover surface, never the brand color.
+ *
+ * The neutrals are **cold graphite**: every gray carries a little blue (hue
+ * 210-220) so the near-black reads as machined metal rather than as warm paper
+ * turned down. Nothing is pure black or pure white at either end.
+ *
+ * The one accent is **signal lime** (hue ~75). It is deliberately a hue the
+ * task-status palette does not own — gray, blue, indigo, violet, amber,
+ * orange, red, green and teal are all statuses, so a brand-colored button that
+ * borrowed one of them would read as a status chip. Lime belongs to the
+ * product, never to a column.
+ *
+ * The accent inverts with the theme instead of keeping one lightness: bright
+ * lime on graphite, deep lime on paper. That is what keeps a filled button
+ * legible *and* clearly bounded in both modes. Contrast, measured:
+ * dark  fg 17.9:1 · muted 7.3:1 · ink-on-accent 13.4:1 · accent-on-bg 15.1:1
+ * light fg 17.1:1 · muted 5.8:1 · ink-on-accent  5.1:1 · accent-on-bg  4.9:1
  */
 :root {
-  --background: 0 0% 98%;
-  --foreground: 0 0% 9%;
+  --background: 210 22% 98%;
+  --foreground: 220 22% 10%;
 
   --card: 0 0% 100%;
-  --card-foreground: 0 0% 9%;
+  --card-foreground: 220 22% 10%;
 
   --popover: 0 0% 100%;
-  --popover-foreground: 0 0% 9%;
+  --popover-foreground: 220 22% 10%;
 
-  --primary: 243 75% 59%;
+  --primary: 76 88% 25%;
   --primary-foreground: 0 0% 100%;
 
-  --secondary: 0 0% 96%;
-  --secondary-foreground: 0 0% 9%;
+  --secondary: 215 20% 95%;
+  --secondary-foreground: 220 22% 10%;
 
-  --muted: 0 0% 96%;
-  --muted-foreground: 0 0% 45%;
+  --muted: 215 20% 95%;
+  --muted-foreground: 217 11% 40%;
 
-  --accent: 0 0% 94%;
-  --accent-foreground: 0 0% 9%;
+  --accent: 214 22% 93%;
+  --accent-foreground: 220 22% 10%;
 
-  --destructive: 0 72% 45%;
+  --destructive: 0 72% 42%;
   --destructive-foreground: 0 0% 100%;
 
-  --border: 0 0% 90%;
-  --input: 0 0% 87%;
-  --ring: 243 75% 59%;
+  --border: 214 18% 89%;
+  --input: 214 16% 82%;
+  --ring: 76 88% 25%;
 
-  --sidebar: 0 0% 100%;
-  --sidebar-foreground: 0 0% 9%;
-  --sidebar-primary: 243 75% 59%;
+  --sidebar: 214 24% 96%;
+  --sidebar-foreground: 220 22% 10%;
+  --sidebar-primary: 76 88% 25%;
   --sidebar-primary-foreground: 0 0% 100%;
-  --sidebar-accent: 0 0% 94%;
-  --sidebar-accent-foreground: 0 0% 9%;
-  --sidebar-border: 0 0% 90%;
-  --sidebar-ring: 243 75% 59%;
+  --sidebar-accent: 214 24% 91%;
+  --sidebar-accent-foreground: 220 22% 10%;
+  --sidebar-border: 214 18% 88%;
+  --sidebar-ring: 76 88% 25%;
 
-  --chart-1: 243 75% 59%;
-  --chart-2: 0 0% 45%;
-  --chart-3: 0 0% 62%;
-  --chart-4: 0 0% 31%;
-  --chart-5: 0 0% 78%;
+  --chart-1: 76 88% 25%;
+  --chart-2: 217 11% 40%;
+  --chart-3: 214 14% 58%;
+  --chart-4: 220 22% 22%;
+  --chart-5: 214 16% 74%;
 
-  --radius: 0.625rem;
+  /* The control radius. Everything else in the ramp is spelled out below, so
+     "how round is a card" is a value someone chose and not a multiplication. */
+  --radius: 0.375rem;
 }
 
 .dark {
-  --background: 0 0% 7%;
-  --foreground: 0 0% 96%;
+  --background: 220 14% 5%;
+  --foreground: 210 17% 96%;
 
-  --card: 0 0% 10%;
-  --card-foreground: 0 0% 96%;
+  --card: 220 13% 8%;
+  --card-foreground: 210 17% 96%;
 
-  --popover: 0 0% 12%;
-  --popover-foreground: 0 0% 96%;
+  --popover: 220 13% 11%;
+  --popover-foreground: 210 17% 96%;
 
-  --primary: 243 75% 66%;
-  --primary-foreground: 0 0% 100%;
+  --primary: 74 86% 62%;
+  --primary-foreground: 74 60% 7%;
 
-  --secondary: 0 0% 16%;
-  --secondary-foreground: 0 0% 96%;
+  --secondary: 220 12% 14%;
+  --secondary-foreground: 210 17% 96%;
 
-  --muted: 0 0% 16%;
-  --muted-foreground: 0 0% 64%;
+  --muted: 220 12% 14%;
+  --muted-foreground: 216 11% 63%;
 
-  --accent: 0 0% 19%;
-  --accent-foreground: 0 0% 96%;
+  --accent: 220 12% 16%;
+  --accent-foreground: 210 17% 96%;
 
-  --destructive: 0 72% 60%;
-  --destructive-foreground: 0 0% 100%;
+  --destructive: 4 80% 63%;
+  --destructive-foreground: 220 30% 6%;
 
-  --border: 0 0% 20%;
-  --input: 0 0% 24%;
-  --ring: 243 75% 66%;
+  --border: 220 11% 17%;
+  --input: 220 11% 24%;
+  --ring: 74 86% 62%;
 
-  --sidebar: 0 0% 9%;
-  --sidebar-foreground: 0 0% 96%;
-  --sidebar-primary: 243 75% 66%;
-  --sidebar-primary-foreground: 0 0% 100%;
-  --sidebar-accent: 0 0% 19%;
-  --sidebar-accent-foreground: 0 0% 96%;
-  --sidebar-border: 0 0% 20%;
-  --sidebar-ring: 243 75% 66%;
+  --sidebar: 220 14% 6%;
+  --sidebar-foreground: 210 17% 96%;
+  --sidebar-primary: 74 86% 62%;
+  --sidebar-primary-foreground: 74 60% 7%;
+  --sidebar-accent: 220 12% 13%;
+  --sidebar-accent-foreground: 210 17% 96%;
+  --sidebar-border: 220 11% 15%;
+  --sidebar-ring: 74 86% 62%;
 
-  --chart-1: 243 75% 66%;
-  --chart-2: 0 0% 64%;
-  --chart-3: 0 0% 48%;
-  --chart-4: 0 0% 78%;
-  --chart-5: 0 0% 34%;
+  --chart-1: 74 86% 62%;
+  --chart-2: 216 11% 63%;
+  --chart-3: 216 10% 45%;
+  --chart-4: 210 17% 86%;
+  --chart-5: 216 10% 32%;
 }
 
 @theme inline {
@@ -127,9 +149,9 @@
      project from scrolling sideways on a 1280 px laptop. */
   --breakpoint-board: 1408px;
 
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
-  --font-heading: var(--font-geist-sans);
+  --font-sans: var(--font-switzer);
+  --font-mono: var(--font-jetbrains-mono);
+  --font-heading: var(--font-switzer);
 
   --color-background: hsl(var(--background));
   --color-foreground: hsl(var(--foreground));
@@ -166,13 +188,17 @@
   --color-chart-4: hsl(var(--chart-4));
   --color-chart-5: hsl(var(--chart-5));
 
-  --radius-sm: calc(var(--radius) * 0.6);
-  --radius-md: calc(var(--radius) * 0.8);
+  /* The radius ramp, written out rather than derived. 4 / 5 / 6 for controls,
+     8 for a card, 12 for a dialog or a sheet, 16 for a large panel. Badges are
+     tags at 5, not pills: the only fully round things in this system are the
+     ones that are round for a reason, which is a face and a switch. */
+  --radius-sm: 0.25rem;
+  --radius-md: 0.3125rem;
   --radius-lg: var(--radius);
-  --radius-xl: calc(var(--radius) * 1.4);
-  --radius-2xl: calc(var(--radius) * 1.8);
-  --radius-3xl: calc(var(--radius) * 2.2);
-  --radius-4xl: calc(var(--radius) * 2.6);
+  --radius-xl: 0.5rem;
+  --radius-2xl: 0.75rem;
+  --radius-3xl: 1rem;
+  --radius-4xl: 9999px;
 }
 
 @layer base {
@@ -231,8 +257,9 @@
  */
 .workeee-editor .bn-editor {
   padding-inline: 0;
-  /* Somewhere to aim at: an empty description is still a page, not a line. */
-  min-height: 8rem;
+  /* Somewhere to aim at: an empty description is still a page, not a line.
+     Any taller and a short description leaves a hole above "Přílohy". */
+  min-height: 4rem;
   font-size: 0.9375rem;
   line-height: 1.65;
 }
@@ -279,11 +306,12 @@
  * them from `--level`, so overriding that keeps its animation intact.
  */
 .workeee-editor [data-content-type="heading"] {
-  --level: 1.375rem;
+  --level: 1.1875rem;
+  letter-spacing: -0.015em;
 }
 
 .workeee-editor [data-content-type="heading"][data-level="2"] {
-  --level: 1.125rem;
+  --level: 1.0625rem;
 }
 
 .workeee-editor [data-content-type="heading"][data-level="3"] {
@@ -317,4 +345,207 @@
 
 .workeee-editor .bn-editor ::selection {
   background-color: hsl(var(--primary) / 0.25);
+}
+
+/*
+ * The public page.
+ *
+ * `html:has()` rather than a class on `<html>`: a nested layout cannot touch
+ * the document element, and without this the app's own background shows through
+ * an overscroll bounce and behind a page shorter than the viewport — in the
+ * light theme that is a white flash under a near-black page. `color-scheme`
+ * hands the scrollbar and the focus ring to the dark side for the same reason.
+ *
+ * The literal value is the `.dark` background above. It has to be literal:
+ * `html` is outside the element that carries the theme class, so it cannot read
+ * the token. The two move together.
+ */
+html:has(.workeee-marketing),
+html:has(.workeee-marketing) body {
+  background-color: hsl(220 14% 5%);
+}
+
+.workeee-marketing {
+  color-scheme: dark;
+}
+
+/*
+ * The display word. Switzer at 800 with the tracking pulled in hard: at 18vw
+ * the default spacing reads as gaps between letters rather than as one word,
+ * and `WORKEEE` is three identical letters in a row, which needs the word to
+ * hold together to stay readable.
+ */
+.workeee-display {
+  font-weight: 800;
+  letter-spacing: -0.055em;
+  line-height: 0.82;
+  text-transform: uppercase;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  @keyframes workeee-rise {
+    from {
+      opacity: 0;
+      transform: translate3d(0, 1.1em, 0);
+    }
+    to {
+      opacity: 1;
+      transform: translate3d(0, 0, 0);
+    }
+  }
+
+  @keyframes workeee-settle {
+    from {
+      opacity: 0;
+      transform: translate3d(-56px, 26px, 0) scale(0.965);
+    }
+    to {
+      opacity: 1;
+      transform: translate3d(0, 0, 0) scale(1);
+    }
+  }
+
+  @keyframes workeee-sweep {
+    from {
+      transform: scaleX(0);
+    }
+    to {
+      transform: scaleX(1);
+    }
+  }
+
+  .workeee-marketing [data-rise] {
+    animation: workeee-rise 900ms cubic-bezier(0.16, 1, 0.3, 1) both;
+    animation-delay: var(--delay, 0ms);
+  }
+
+  .workeee-marketing [data-settle] {
+    animation: workeee-settle 1100ms cubic-bezier(0.16, 1, 0.3, 1) both;
+    animation-delay: var(--delay, 0ms);
+  }
+
+  .workeee-marketing [data-sweep] {
+    transform-origin: left center;
+    animation: workeee-sweep 900ms cubic-bezier(0.16, 1, 0.3, 1) both;
+    animation-delay: var(--delay, 0ms);
+  }
+}
+
+/*
+ * A horizontal scroller whose right edge fades only while it has somewhere left
+ * to scroll. `animation-timeline: scroll()` drives it off the scroll position
+ * itself, so there is no listener and nothing to clean up; where it is not
+ * supported the strip simply has no fade, which is what it had before.
+ */
+@supports (animation-timeline: scroll(self inline)) {
+  @media (prefers-reduced-motion: no-preference) {
+    @keyframes workeee-scroll-fade {
+      from {
+        mask-image: linear-gradient(
+          to right,
+          #000 calc(100% - 4rem),
+          transparent
+        );
+      }
+      to {
+        mask-image: linear-gradient(to right, #000 100%, transparent);
+      }
+    }
+
+    .workeee-scroll-fade {
+      animation: workeee-scroll-fade linear both;
+      animation-timeline: scroll(self inline);
+    }
+  }
+}
+
+/*
+ * A screenshot that runs past the edge of its frame fades instead of being
+ * guillotined, so the crop reads as "the board continues" and not as a bug.
+ */
+.workeee-fade-r {
+  mask-image: linear-gradient(to right, #000 calc(100% - 5rem), transparent);
+}
+
+.workeee-fade-b {
+  mask-image: linear-gradient(to bottom, #000 calc(100% - 6rem), transparent);
+}
+
+/*
+ * Scroll choreography, done with scroll-driven animations rather than with a
+ * library.
+ *
+ * Every rule below is wrapped twice, and both wrappers are load-bearing.
+ * `@supports` because an `animation` with `both` and no timeline support falls
+ * back to the *document* timeline, which would fire every reveal on the page at
+ * once during load — the exact failure that makes people reach for JavaScript.
+ * `prefers-reduced-motion` because these move.
+ *
+ * What this buys: the whole public page stays a server component, nothing
+ * listens to scroll, nothing measures, and the interpolation happens on the
+ * compositor instead of in a frame callback.
+ */
+@supports (animation-timeline: view()) {
+  @media (prefers-reduced-motion: no-preference) {
+    @keyframes workeee-enter {
+      from {
+        opacity: 0;
+        transform: translate3d(0, 2rem, 0);
+      }
+      to {
+        opacity: 1;
+        transform: translate3d(0, 0, 0);
+      }
+    }
+
+    /* A section arrives once, as it comes up the viewport. */
+    .workeee-marketing [data-enter] {
+      animation: workeee-enter linear both;
+      animation-timeline: view();
+      animation-range: entry 4% cover 26%;
+    }
+
+    /* Children of one row arrive in reading order. The delay is a range shift,
+       not a time delay, so it stays tied to the scrollbar. */
+    .workeee-marketing [data-enter-stagger] > * {
+      animation: workeee-enter linear both;
+      animation-timeline: view();
+      animation-range: entry 2% cover 24%;
+    }
+
+    .workeee-marketing [data-enter-stagger] > *:nth-child(2) {
+      animation-range: entry 6% cover 30%;
+    }
+
+    .workeee-marketing [data-enter-stagger] > *:nth-child(3) {
+      animation-range: entry 10% cover 36%;
+    }
+
+    .workeee-marketing [data-enter-stagger] > *:nth-child(n + 4) {
+      animation-range: entry 14% cover 42%;
+    }
+  }
+}
+
+/*
+ * The one parallax on the page, and the one place the skill asks for it: the
+ * two layers of the hero interleave separate slightly as the page scrolls, so
+ * the screenshot reads as sitting in front of the word rather than pasted onto
+ * it. The delta is small on purpose; a big one turns a composition into a toy.
+ */
+@supports (animation-timeline: scroll()) {
+  @media (prefers-reduced-motion: no-preference) {
+    @keyframes workeee-drift {
+      to {
+        transform: translate3d(0, var(--drift, -3rem), 0);
+      }
+    }
+
+    .workeee-marketing [data-drift] {
+      animation: workeee-drift linear both;
+      animation-timeline: scroll();
+      animation-range: 0 70vh;
+      will-change: transform;
+    }
+  }
 }

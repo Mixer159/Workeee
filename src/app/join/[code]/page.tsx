@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { JoinScreen } from "@/components/join/join-screen";
 
-const TITLE = "Pozvánka — Workeee";
+const TITLE = "Pozvánka do Workeee";
 const DESCRIPTION = "Připojte se k organizaci ve Workeee.";
 
 /**

@@ -67,7 +67,7 @@ export function TaskTitleField({
           event.currentTarget.blur();
         }
       }}
-      className="-mx-2 resize-none overflow-hidden rounded-lg bg-transparent px-2 py-1 font-heading text-2xl font-semibold tracking-tight outline-none transition-colors hover:bg-accent focus:hover:bg-transparent focus-visible:ring-3 focus-visible:ring-ring/50"
+      className="-mx-2 resize-none overflow-hidden rounded-lg bg-transparent px-2 py-1 font-heading text-[1.375rem] leading-snug font-bold tracking-[-0.02em] outline-none transition-colors hover:bg-accent focus:hover:bg-transparent focus-visible:ring-3 focus-visible:ring-ring/40"
     />
   );
 }

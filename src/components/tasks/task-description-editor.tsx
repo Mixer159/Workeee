@@ -8,6 +8,7 @@ import { useMutation } from "convex/react";
 import { toast } from "sonner";
 import { api } from "@convex/_generated/api";
 import type { Id } from "@convex/_generated/dataModel";
+import { parseTaskContent } from "@convex/lib/taskContent";
 import { useTheme } from "@/hooks/use-theme";
 import { blocknoteCs } from "@/lib/blocknote-cs";
 import type { SaveState } from "@/lib/save-state";
@@ -129,10 +130,6 @@ function parseContent(raw: string | null): PartialBlock[] | undefined {
   if (!raw) {
     return undefined;
   }
-  try {
-    const parsed = JSON.parse(raw) as PartialBlock[];
-    return Array.isArray(parsed) && parsed.length > 0 ? parsed : undefined;
-  } catch {
-    return undefined;
-  }
+  const parsed = parseTaskContent(raw);
+  return parsed && parsed.length > 0 ? (parsed as PartialBlock[]) : undefined;
 }

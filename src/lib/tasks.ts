@@ -14,3 +14,8 @@ export type BoardStatus = FunctionReturnType<
 export type BoardTask = FunctionReturnType<
   typeof api.tasks.listByProject
 >[number];
+
+/** One task's unread state — what `taskSeen.unreadByProject` returns per task. */
+export type TaskUnread = FunctionReturnType<
+  typeof api.taskSeen.unreadByProject
+>[number];

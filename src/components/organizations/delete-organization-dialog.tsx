@@ -93,7 +93,6 @@ export function DeleteOrganizationDialog({
               value={typed}
               onChange={(event) => setTyped(event.target.value)}
               autoComplete="off"
-              className="h-9"
             />
           </div>
 

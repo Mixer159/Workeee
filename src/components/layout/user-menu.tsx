@@ -4,10 +4,10 @@ import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
-  BellIcon,
   ChevronsUpDownIcon,
   LogOutIcon,
   MoonIcon,
+  SettingsIcon,
   SunIcon,
 } from "lucide-react";
 import { toast } from "sonner";
@@ -50,7 +50,7 @@ export function UserMenu() {
   };
 
   if (user === undefined) {
-    return <Skeleton className="h-12 w-full" />;
+    return <Skeleton className="h-13 w-full rounded-lg" />;
   }
 
   if (user === null) {
@@ -63,15 +63,15 @@ export function UserMenu() {
         <Button
           type="button"
           variant="ghost"
-          className="h-12 w-full justify-start gap-2.5 px-2 text-left"
+          className="h-13 w-full justify-start gap-2.5 rounded-lg px-2 text-left"
         >
           <Avatar className="size-8">
             {user.image ? <AvatarImage src={user.image} alt="" /> : null}
             <AvatarFallback>{userInitials(user.name, user.email)}</AvatarFallback>
           </Avatar>
           <span className="flex min-w-0 flex-1 flex-col">
-            <span className="truncate text-sm font-medium">{user.name}</span>
-            <span className="truncate text-xs font-normal text-muted-foreground">
+            <span className="truncate text-[0.8125rem] font-medium">{user.name}</span>
+            <span className="truncate text-[0.6875rem] font-normal text-muted-foreground">
               {user.email}
             </span>
           </span>
@@ -80,11 +80,13 @@ export function UserMenu() {
       </DropdownMenuTrigger>
       <DropdownMenuContent align="start" side="top" className="w-(--radix-dropdown-menu-trigger-width) min-w-56">
         {/* Personal, not organization-wide — which is why it hangs off the
-            person and not off the organization switcher above. */}
+            person and not off the organization switcher above. The full label:
+            the rail's "Upozornění" is the feed, and one word must not name two
+            doors on one screen. */}
         <DropdownMenuItem asChild>
           <Link href="/nastaveni/upozorneni">
-            <BellIcon />
-            Upozornění
+            <SettingsIcon />
+            Nastavení upozornění
           </Link>
         </DropdownMenuItem>
         <DropdownMenuSeparator />

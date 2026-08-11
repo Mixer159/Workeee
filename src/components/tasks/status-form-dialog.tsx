@@ -93,7 +93,6 @@ export function StatusFormDialog({
               maxLength={60}
               required
               autoFocus
-              className="h-9"
             />
           </div>
 
@@ -108,13 +107,13 @@ export function StatusFormDialog({
                   aria-pressed={color === option}
                   onClick={() => setColor(option)}
                   className={cn(
-                    "flex size-8 items-center justify-center rounded-lg border border-border transition-colors outline-none focus-visible:ring-3 focus-visible:ring-ring/50",
-                    color === option ? "border-ring" : "hover:bg-accent",
+                    "flex size-8 items-center justify-center rounded-lg border border-border transition-colors outline-none focus-visible:ring-3 focus-visible:ring-ring/40",
+                    color === option ? "border-primary bg-primary/10" : "hover:bg-accent",
                   )}
                 >
                   <span
                     className={cn(
-                      "flex size-4 items-center justify-center rounded-full text-white",
+                      "flex size-4 items-center justify-center rounded-[3px] text-background",
                       TASK_STATUS_DOT_CLASS[option],
                     )}
                   >
@@ -139,12 +138,12 @@ export function StatusFormDialog({
                       setName(template.name);
                       setColor(template.color);
                     }}
-                    className="inline-flex h-7 items-center gap-1.5 rounded-4xl border border-border px-2.5 text-xs font-medium transition-colors outline-none hover:bg-accent focus-visible:ring-3 focus-visible:ring-ring/50"
+                    className="inline-flex h-7 items-center gap-1.5 rounded-md border border-border px-2.5 text-xs font-medium transition-colors outline-none hover:bg-accent focus-visible:ring-3 focus-visible:ring-ring/40"
                   >
                     <span
                       aria-hidden
                       className={cn(
-                        "size-2 rounded-full",
+                        "size-2 rounded-[2px]",
                         TASK_STATUS_DOT_CLASS[template.color],
                       )}
                     />

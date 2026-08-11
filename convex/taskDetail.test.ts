@@ -160,6 +160,35 @@ describe("task content", () => {
     ).rejects.toThrow(/dlouhý/);
   });
 
+  test("a malformed or excessively nested block document is refused", async () => {
+    const t = setup();
+    const { owner, taskId } = await createTask(t);
+
+    await expect(
+      owner.as.mutation(api.taskContent.save, {
+        taskId,
+        content: JSON.stringify([{ type: "unknown" }]),
+      }),
+    ).rejects.toThrow(/nepovedlo/);
+    await expect(
+      owner.as.mutation(api.taskContent.save, {
+        taskId,
+        content: JSON.stringify([{ type: "paragraph", content: [null] }]),
+      }),
+    ).rejects.toThrow(/nepovedlo/);
+
+    let nested: Record<string, unknown> = { type: "paragraph" };
+    for (let depth = 0; depth < 51; depth += 1) {
+      nested = { type: "paragraph", children: [nested] };
+    }
+    await expect(
+      owner.as.mutation(api.taskContent.save, {
+        taskId,
+        content: JSON.stringify([nested]),
+      }),
+    ).rejects.toThrow(/nepovedlo/);
+  });
+
   test("an outsider can neither read nor write the body", async () => {
     const t = setup();
     const { owner, taskId } = await createTask(t);
@@ -578,6 +607,32 @@ describe("comments", () => {
         body: JSON.stringify([{ type: "script", text: "x" }]),
       }),
     ).rejects.toThrow(/nepovedlo/);
+  });
+
+  test("the 201st comment on a task is refused", async () => {
+    const t = setup();
+    const { owner, organizationId, projectId, taskId } = await createTask(t);
+
+    await t.run(async (ctx) => {
+      await Promise.all(
+        Array.from({ length: 200 }, (_, index) =>
+          ctx.db.insert("comments", {
+            taskId,
+            projectId,
+            organizationId,
+            authorId: owner.userId,
+            body: text(`Komentář ${index + 1}`),
+          }),
+        ),
+      );
+    });
+
+    await expect(
+      owner.as.mutation(api.comments.create, {
+        taskId,
+        body: text("Komentář 201"),
+      }),
+    ).rejects.toThrow(/nejvýš 200/);
   });
 
   test("a comment attachment must be the author's own upload on this task", async () => {

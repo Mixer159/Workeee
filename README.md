@@ -26,8 +26,9 @@ pnpm dev:convex
 pnpm dev
 ```
 
-Frontend poběží na `http://localhost:3000`. `pnpm dev:convex` běží souběžně
-v druhém terminálu a při prvním spuštění doplní adresy deploymentu.
+Frontend poběží na `http://localhost:3000`. Na `/` je samotná aplikace,
+veřejná stránka na `/o-aplikaci`. `pnpm dev:convex` běží souběžně v druhém terminálu
+a při prvním spuštění doplní adresy deploymentu.
 
 ## Proměnné prostředí
 
@@ -82,4 +83,10 @@ veřejné adresy produkčního Convex deploymentu a
 Backend je v `convex/`, frontend v `src/` a CI v `.github/workflows/ci.yml`.
 Úplný kontrakt projektu — verze stacku, auth a přístupový model, schéma,
 designové tokeny a roadmapa — je v [`CLAUDE.md`](./CLAUDE.md). Při změně
-dokumentovaného faktu aktualizujte ve stejném commitu i tento soubor.
+dokumentovaného faktu aktualizujte ve stejném commitu i tento soubor. Změnu,
+které si všimne uživatel, zapište i do `src/lib/changelog.ts`; vykresluje se na
+veřejné stránce a na `/zmeny`.
+
+## Licence
+
+Kód je pod licencí [MIT](./LICENSE). Forky i pull requesty jsou vítané.

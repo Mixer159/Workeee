@@ -1,9 +1,11 @@
+import { readFile } from "node:fs/promises";
+import path from "node:path";
 import type { CSSProperties } from "react";
 import { ImageResponse } from "next/og";
 
 /**
- * The canvas every link preview is drawn on — one layout, shared by the
- * dashboard and the invite page, so an unfurl always looks like the same
+ * The canvas every link preview is drawn on — one layout, shared by the public
+ * page, the app and the invite page, so an unfurl always looks like the same
  * product. Colors are the dark theme's tokens spelled out, because Satori never
  * sees `globals.css`.
  */
@@ -12,75 +14,62 @@ import { ImageResponse } from "next/og";
 export const OG_SIZE = { width: 1200, height: 630 };
 export const OG_CONTENT_TYPE = "image/png";
 
-const BACKGROUND = "#121212";
-const FOREGROUND = "#f5f5f5";
-const MUTED = "#a3a3a3";
-const BRAND = "#4f46e5";
-const BRAND_LIGHT = "#6e67e9";
+const BACKGROUND = "#0B0C0F";
+const FOREGROUND = "#F3F5F7";
+const MUTED = "#969FAB";
+const ACCENT = "#CBF14B";
 
 /**
  * The mark, spelled out again because Satori cannot import `src/app/icon.svg` —
- * it is not the DOM and there is no loader in front of it. The two files carry
- * the same path and have to be changed together.
+ * it is not the DOM and there is no loader in front of it. Same four shapes as
+ * the icon and as `components/brand/mark.tsx`; all three change together.
  */
 const MARK = [
-  '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64">',
-  '<rect width="64" height="64" rx="14.5" fill="#4f46e5"/>',
-  '<path d="M13 19 H20.5 L25.27 30.28 L32 19 L38.73 30.28 L43.5 19 H51 L40 45 L32 31.58 L24 45 Z"',
-  ' fill="#ffffff" stroke="#ffffff" stroke-width="1.5" stroke-linejoin="round"/>',
-  "</svg>",
+  '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 44" width="48" height="44">',
+  `<g fill="${ACCENT}">`,
+  '<rect x="0" y="0" width="12" height="44" rx="3"/>',
+  '<rect x="18" y="14" width="12" height="30" rx="3"/>',
+  '<rect x="36" y="28" width="12" height="16" rx="3"/>',
+  '<rect x="36" y="10" width="12" height="10" rx="3"/>',
+  "</g></svg>",
 ].join("");
 
 const MARK_SRC = `data:image/svg+xml;base64,${Buffer.from(MARK).toString("base64")}`;
 
 /**
- * Google Fonts answers this ancient user agent with a plain `.woff`, which
- * Satori can parse. The modern answer is `.woff2`, which it cannot.
+ * Switzer, read off disk rather than fetched.
+ *
+ * Satori parses TTF, OTF and WOFF and chokes on WOFF2, and it renders a
+ * variable font at its default instance — so the two static cuts beside the
+ * variable file are here for exactly this, and for nothing else. Reading them
+ * locally is also what makes an unfurl independent of a font CDN being up at
+ * the moment somebody pastes a link. `next.config.ts` traces the folder into
+ * the serverless bundle, because the invite preview is rendered on demand.
  */
-const LEGACY_USER_AGENT =
-  "Mozilla/5.0 (Windows NT 6.1; WOW64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/12.0.742.112 Safari/534.30";
+const FONT_DIR = path.join(process.cwd(), "src", "app", "fonts");
 
-type FontWeight = 400 | 600;
-
-async function loadGeist(weight: FontWeight) {
-  const stylesheet = await fetch(
-    `https://fonts.googleapis.com/css2?family=Geist:wght@${weight}`,
-    { headers: { "User-Agent": LEGACY_USER_AGENT }, cache: "force-cache" },
-  );
-  if (!stylesheet.ok) {
-    throw new Error(`Geist ${weight}: ${stylesheet.status}`);
-  }
-
-  const source = /src: url\(([^)]+)\) format\('(?:woff|truetype|opentype)'\)/.exec(
-    await stylesheet.text(),
-  )?.[1];
-  if (!source) {
-    throw new Error(`Geist ${weight}: no parsable font file in the stylesheet`);
-  }
-
-  const file = await fetch(source, { cache: "force-cache" });
-  if (!file.ok) {
-    throw new Error(`Geist ${weight}: ${file.status}`);
-  }
-
-  return {
-    name: "Geist",
-    data: await file.arrayBuffer(),
-    weight,
-    style: "normal" as const,
-  };
-}
-
-/**
- * The app already downloads Geist from Google at build time through
- * `next/font`, so asking for it here adds no new dependency. When it cannot be
- * had, the fonts are dropped entirely and `ImageResponse` falls back to its own
- * bundled face — a preview in the wrong typeface still beats no preview.
- */
 async function loadFonts() {
   try {
-    return await Promise.all([loadGeist(400), loadGeist(600)]);
+    const [regular, extrabold] = await Promise.all([
+      readFile(path.join(FONT_DIR, "Switzer-400.woff")),
+      readFile(path.join(FONT_DIR, "Switzer-800.woff")),
+    ]);
+    return [
+      {
+        name: "Switzer",
+        data: regular,
+        weight: 400 as const,
+        style: "normal" as const,
+      },
+      {
+        name: "Switzer",
+        data: extrabold,
+        weight: 800 as const,
+        style: "normal" as const,
+      },
+    ];
   } catch {
+    // A preview in the wrong typeface still beats no preview.
     return undefined;
   }
 }
@@ -134,15 +123,15 @@ export async function renderOgImage({
           display: "flex",
           flexDirection: "column",
           justifyContent: "space-between",
-          padding: "76px 80px",
+          padding: "68px 76px",
           backgroundColor: BACKGROUND,
-          /* One warm corner, so the canvas is not a flat rectangle. Painted on
-             the canvas itself: an absolutely positioned circle gets clipped by
-             Satori's layout box and shows its edges. */
+          /* One cold corner of accent light. Painted on the canvas itself: an
+             absolutely positioned circle gets clipped by Satori's layout box
+             and shows its edges. */
           backgroundImage:
-            "radial-gradient(circle at 82% 6%, rgba(110,103,233,0.42), rgba(110,103,233,0) 58%)",
+            "radial-gradient(900px 620px at 108% 118%, rgba(203,241,75,0.16), rgba(203,241,75,0) 62%)",
           color: FOREGROUND,
-          fontFamily: "Geist",
+          fontFamily: "Switzer",
         }}
       >
         <div
@@ -154,13 +143,13 @@ export async function renderOgImage({
         >
           <div style={{ display: "flex", alignItems: "center" }}>
             {/* eslint-disable-next-line @next/next/no-img-element -- Satori renders to a PNG; next/image has nothing to do here. */}
-            <img src={MARK_SRC} width={76} height={76} alt="" />
+            <img src={MARK_SRC} width={44} height={40} alt="" />
             <div
               style={{
-                marginLeft: 22,
-                fontSize: 36,
-                fontWeight: 600,
-                letterSpacing: -0.8,
+                marginLeft: 18,
+                fontSize: 30,
+                fontWeight: 800,
+                letterSpacing: -0.9,
               }}
             >
               Workeee
@@ -172,13 +161,11 @@ export async function renderOgImage({
               style={{
                 display: "flex",
                 alignItems: "center",
-                padding: "12px 26px",
-                borderRadius: 999,
-                border: `1px solid ${BRAND_LIGHT}59`,
-                backgroundColor: `${BRAND}33`,
-                color: "#c9c6f8",
-                fontSize: 26,
-                fontWeight: 600,
+                padding: "10px 20px",
+                borderRadius: 6,
+                border: `1px solid ${ACCENT}55`,
+                color: ACCENT,
+                fontSize: 24,
               }}
             >
               {eyebrow}
@@ -187,27 +174,38 @@ export async function renderOgImage({
         </div>
 
         <div style={{ display: "flex", flexDirection: "column" }}>
+          {/* The one accent stroke, the same short rule the rail draws next to
+              the project you have open. */}
+          <div
+            style={{
+              width: 64,
+              height: 4,
+              borderRadius: 2,
+              marginBottom: 34,
+              backgroundColor: ACCENT,
+            }}
+          />
           <Line
             text={title}
-            space={13}
+            space={16}
             style={{
-              maxWidth: 900,
-              fontSize: 68,
-              fontWeight: 600,
-              lineHeight: 1.16,
-              letterSpacing: -2,
+              maxWidth: 960,
+              fontSize: 74,
+              fontWeight: 800,
+              lineHeight: 1.04,
+              letterSpacing: -3.4,
             }}
           />
           {subtitle ? (
             <Line
               text={subtitle}
-              space={6}
+              space={7}
               style={{
-                marginTop: 24,
-                maxWidth: 820,
-                fontSize: 30,
+                marginTop: 26,
+                maxWidth: 840,
+                fontSize: 28,
                 color: MUTED,
-                letterSpacing: -0.4,
+                letterSpacing: -0.3,
               }}
             />
           ) : null}

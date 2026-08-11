@@ -19,6 +19,15 @@ const contentSecurityPolicy = [
 
 const nextConfig: NextConfig = {
   poweredByHeader: false,
+  /*
+   * The link previews draw their type with Satori, which reads the two static
+   * Switzer cuts straight off disk. The invite preview is rendered on demand
+   * rather than at build, so those two files have to be traced into the
+   * serverless bundle or the unfurl silently falls back to a bundled face.
+   */
+  outputFileTracingIncludes: {
+    "/**/opengraph-image": ["./src/app/fonts/Switzer-*.woff"],
+  },
   async headers() {
     return [
       {
