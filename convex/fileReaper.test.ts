@@ -122,8 +122,14 @@ async function blobExists(t: Harness, storageId: Id<"_storage">) {
  */
 async function reap(t: Harness, limit?: number) {
   const newest = await t.run(async (ctx) => {
-    const rows = await ctx.db.query("files").collect();
-    return rows.reduce((max, row) => Math.max(max, row._creationTime), 0);
+    const [files, blobs] = await Promise.all([
+      ctx.db.query("files").collect(),
+      ctx.db.system.query("_storage").collect(),
+    ]);
+    return [...files, ...blobs].reduce(
+      (max, row) => Math.max(max, row._creationTime),
+      0,
+    );
   });
   return await t.mutation(internal.fileReaper.reapOrphanedFiles, {
     olderThanMs: Date.now() - newest - 1,
@@ -175,9 +181,57 @@ describe("orphaned comment uploads", () => {
     // The default threshold: nothing created seconds ago is reapable.
     const result = await t.mutation(internal.fileReaper.reapOrphanedFiles, {});
 
-    expect(result.scanned).toBe(0);
     expect(result.comment).toBe(0);
     expect(await fileRow(t, orphan.fileId)).not.toBeNull();
+    expect(await blobExists(t, orphan.storageId)).toBe(true);
+  });
+});
+
+describe("uploads never registered", () => {
+  test("an aged raw blob is deleted while task files and project icons are kept", async () => {
+    const t = setup();
+    const { owner, projectId, taskId } = await createTask(t);
+    const orphan = await storeBlob(t);
+    const attachment = await upload(t, owner, taskId, "attachment");
+    const icon = await storeBlob(t);
+    await t.run(async (ctx) => {
+      await ctx.db.patch(projectId, { iconStorageId: icon });
+    });
+
+    const result = await reap(t);
+
+    expect(result.untracked).toBe(1);
+    expect(await blobExists(t, orphan)).toBe(false);
+    expect(await fileRow(t, attachment.fileId)).not.toBeNull();
+    expect(await blobExists(t, attachment.storageId)).toBe(true);
+    expect(await blobExists(t, icon)).toBe(true);
+  });
+
+  test("a fresh raw blob inside the grace period is kept", async () => {
+    const t = setup();
+    const orphan = await storeBlob(t);
+
+    const result = await t.mutation(internal.fileReaper.reapOrphanedFiles, {});
+
+    expect(result.untracked).toBe(0);
+    expect(await blobExists(t, orphan)).toBe(true);
+  });
+
+  test("the storage cursor reaches an orphan behind referenced blobs", async () => {
+    const t = setup();
+    const { owner, taskId } = await createTask(t);
+    const attachment = await upload(t, owner, taskId, "attachment");
+    const orphan = await storeBlob(t);
+
+    const first = await reap(t, 1);
+    expect(first.untracked).toBe(0);
+    expect(await blobExists(t, attachment.storageId)).toBe(true);
+    expect(await blobExists(t, orphan)).toBe(true);
+
+    const second = await reap(t, 1);
+    expect(second.untracked).toBe(1);
+    expect(await blobExists(t, attachment.storageId)).toBe(true);
+    expect(await blobExists(t, orphan)).toBe(false);
   });
 });
 
@@ -235,7 +289,7 @@ describe("the batch cap", () => {
 
     const result = await reap(t, 2);
 
-    expect(result.scanned).toBe(2);
+    expect(result.scanned).toBe(4);
     expect(result.comment).toBe(2);
 
     const remaining = await t.run(

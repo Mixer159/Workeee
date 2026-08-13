@@ -17,9 +17,9 @@ export const MAX_FILES_PER_CONTEXT = 30;
 
 /**
  * Content types we refuse even though the blob is stored on the Convex storage
- * origin: an HTML or SVG document opened from a link executes script there, and
- * `getUrl` hands out a link that anyone with it can open. Neither is worth the
- * convenience of attaching one.
+ * origin: an HTML, SVG or other XML document opened from a link can execute or
+ * load active content there, and `getUrl` hands out a link that anyone with it
+ * can open. That is not worth the convenience of attaching one.
  */
 const BLOCKED_MIME_TYPES = new Set([
   "text/html",
@@ -29,6 +29,15 @@ const BLOCKED_MIME_TYPES = new Set([
   "application/x-msdos-program",
   "application/vnd.microsoft.portable-executable",
 ]);
+
+function isBlockedMimeType(mimeType: string): boolean {
+  return (
+    BLOCKED_MIME_TYPES.has(mimeType) ||
+    mimeType === "application/xml" ||
+    mimeType === "text/xml" ||
+    mimeType.endsWith("+xml")
+  );
+}
 
 export function isImageMimeType(mimeType: string): boolean {
   return mimeType.startsWith("image/");
@@ -75,8 +84,8 @@ export async function checkStoredFile(
 
   if (
     mimeType.length === 0 ||
-    BLOCKED_MIME_TYPES.has(mimeType) ||
-    (claimed.length > 0 && BLOCKED_MIME_TYPES.has(claimed))
+    isBlockedMimeType(mimeType) ||
+    (claimed.length > 0 && isBlockedMimeType(claimed))
   ) {
     return { ok: false, error: "Tento typ souboru nahrát nejde." };
   }

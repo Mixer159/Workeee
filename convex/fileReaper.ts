@@ -2,12 +2,16 @@ import { v } from "convex/values";
 import type { Doc, Id } from "./_generated/dataModel";
 import { internalMutation, type MutationCtx } from "./_generated/server";
 import { deleteFile } from "./lib/files";
+import { isStorageIdReferenced } from "./lib/storage";
 
 /**
  * The orphaned-file reaper.
  *
- * Two upload surfaces can leave a blob behind that nothing will ever point at
- * again:
+ * An upload can leave a blob behind that nothing will ever point at again:
+ *
+ * - **before registration** — a client first POSTs to a generated upload URL,
+ *   then calls `files.register` or `projects.setIcon`. Closing the tab between
+ *   those steps leaves a raw `_storage` row with no app row pointing at it.
  *
  * - **`context: "comment"`** — the composer uploads the image before the comment
  *   exists. `comments.create` claims the file by writing `commentId` onto it. A
@@ -18,7 +22,7 @@ import { deleteFile } from "./lib/files";
  *   URL inside the document. Deleting the image block removes the URL from the
  *   JSON; the `files` row and the blob stay.
  *
- * Both are reaped **once a day, and only when they are older than the age
+ * All three cases are reaped **once a day, and only when they are older than the age
  * threshold** (24 h by default). The grace period is what makes it safe: a file
  * uploaded seconds ago is still being written into a comment or a document that
  * has not autosaved yet, and killing it would break the surface it belongs to.
@@ -27,9 +31,9 @@ import { deleteFile } from "./lib/files";
  * assigned by the database — a test cannot fake an old row, so it passes `0`
  * instead and reaps everything it just created.
  *
- * The scan is index-driven: `by_context` is `["context"]` plus the implicit
- * `_creationTime`, so each branch reads its own candidates oldest-first, already
- * cut off at the threshold, and takes at most `limit` of them.
+ * The file-row scans are index-driven. Raw storage is paginated with a durable
+ * cursor so referenced blobs at the front can never permanently hide later
+ * abandoned uploads. Every branch examines at most `limit` rows per run.
  */
 
 /** 24 hours. Long enough that no live composer or unsaved document is inside it. */
@@ -39,13 +43,17 @@ export const DEFAULT_ORPHAN_AGE_MS = 24 * 60 * 60 * 1000;
 export const DEFAULT_REAP_LIMIT = 500;
 
 type ReapResult = {
+  /** Raw uploads that no app row ever claimed. */
+  untracked: number;
   /** Unclaimed comment uploads deleted. */
   comment: number;
   /** Body images no longer named by the document deleted. */
   content: number;
-  /** Rows examined across both branches. */
+  /** Rows examined across all three branches. */
   scanned: number;
 };
+
+const STORAGE_CURSOR_KEY = "orphaned-storage";
 
 /**
  * The daily job (`convex/crons.ts`). Also runnable by hand:
@@ -60,16 +68,69 @@ export const reapOrphanedFiles = internalMutation({
     const cutoff = Date.now() - (args.olderThanMs ?? DEFAULT_ORPHAN_AGE_MS);
     const limit = args.limit ?? DEFAULT_REAP_LIMIT;
 
+    const untracked = await reapUntrackedStorage(ctx, cutoff, limit);
     const comment = await reapUnclaimedCommentFiles(ctx, cutoff, limit);
     const content = await reapUnreferencedContentFiles(ctx, cutoff, limit);
 
     return {
+      untracked: untracked.deleted,
       comment: comment.deleted,
       content: content.deleted,
-      scanned: comment.scanned + content.scanned,
+      scanned: untracked.scanned + comment.scanned + content.scanned,
     };
   },
 });
+
+/**
+ * Delete old `_storage` rows that neither a task file nor a project icon owns.
+ *
+ * The scan deliberately paginates the whole system table instead of taking the
+ * oldest `limit`: legitimate long-lived files would otherwise sit at the front
+ * forever and starve every orphan behind them. Fresh rows may be visited, but
+ * the cursor cycles back after a complete pass and they are only deleted on a
+ * later pass once the grace period has elapsed.
+ */
+async function reapUntrackedStorage(
+  ctx: MutationCtx,
+  cutoff: number,
+  limit: number,
+): Promise<{ deleted: number; scanned: number }> {
+  const state = await ctx.db
+    .query("maintenanceCursors")
+    .withIndex("by_key", (q) => q.eq("key", STORAGE_CURSOR_KEY))
+    .unique();
+  const page = await ctx.db.system
+    .query("_storage")
+    .withIndex("by_creation_time")
+    .paginate({ cursor: state?.cursor ?? null, numItems: limit });
+
+  let deleted = 0;
+  for (const blob of page.page) {
+    if (
+      blob._creationTime >= cutoff ||
+      (await isStorageIdReferenced(ctx, blob._id))
+    ) {
+      continue;
+    }
+    await ctx.storage.delete(blob._id);
+    deleted += 1;
+  }
+
+  if (page.isDone) {
+    if (state) {
+      await ctx.db.delete(state._id);
+    }
+  } else if (state) {
+    await ctx.db.patch(state._id, { cursor: page.continueCursor });
+  } else {
+    await ctx.db.insert("maintenanceCursors", {
+      key: STORAGE_CURSOR_KEY,
+      cursor: page.continueCursor,
+    });
+  }
+
+  return { deleted, scanned: page.page.length };
+}
 
 /** Candidates of one context, oldest first, already cut off at the threshold. */
 async function candidates(

@@ -440,4 +440,13 @@ export default defineSchema({
     /** When the flush is currently due. */
     flushAt: v.number(),
   }).index("by_user", ["userId"]),
+
+  /**
+   * Cursors for bounded maintenance scans. A cursor is deleted after its scan
+   * reaches the end, so the next scheduled run starts another complete pass.
+   */
+  maintenanceCursors: defineTable({
+    key: v.string(),
+    cursor: v.string(),
+  }).index("by_key", ["key"]),
 });

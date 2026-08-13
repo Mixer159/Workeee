@@ -898,7 +898,11 @@ reschedules itself; see **Deleting an organization**.
 
 ### The orphaned-file reaper
 
-Two of the three upload surfaces can strand a blob:
+An upload can strand a blob in three ways:
+
+- every client upload is two steps (POST to a generated URL, then
+  `files.register` or `projects.setIcon`). Closing the tab between them leaves a
+  raw `_storage` row that no app row claims.
 
 - a **comment** upload happens before the comment exists, and `comments.create`
   is what claims it by writing `commentId`. An abandoned composer leaves a
@@ -907,11 +911,11 @@ Two of the three upload surfaces can strand a blob:
 - a **content** upload is written into the BlockNote document as its serving
   URL. Deleting the image block removes the URL; the row and the blob stay.
 
-`internal.fileReaper.reapOrphanedFiles` sweeps both once a day (03:20 UTC):
+`internal.fileReaper.reapOrphanedFiles` sweeps all three once a day (03:20 UTC):
 
 ```ts
 reapOrphanedFiles({ olderThanMs?, limit? })
-  → { comment: number, content: number, scanned: number }
+  → { untracked: number, comment: number, content: number, scanned: number }
 ```
 
 - **The grace period is the safety.** Only rows older than `olderThanMs`
@@ -921,6 +925,11 @@ reapOrphanedFiles({ olderThanMs?, limit? })
   `_creationTime`, so each branch reads its own candidates oldest-first with the
   threshold applied *inside* the index range: `q.eq("context", …).lt("_creationTime", cutoff)`.
 - **Bounded.** At most `limit` rows per branch per run (default 500).
+- **The raw-storage sweep cannot starve.** It paginates `_storage` and stores
+  the continuation in `maintenanceCursors`; reaching the end deletes the cursor
+  so the next run starts a new pass. Referenced task files and project icons are
+  always kept. A fresh row that a pass sees is skipped, then reconsidered after
+  the cursor cycles.
 - A `content` file counts as referenced when the task's `taskContent.content`
   contains either its storage id or its serving URL; a task with no
   `taskContent` row has an empty description, so every `content` file on it is
@@ -928,7 +937,8 @@ reapOrphanedFiles({ olderThanMs?, limit? })
   referenced.
 - `olderThanMs` is an argument and not a constant **because a test cannot age a
   row**: `_creationTime` is assigned by the database. `convex/fileReaper.test.ts`
-  measures the age against the newest `files` row instead of against the clock.
+  measures the age against the newest `files` or `_storage` row instead of
+  against the clock.
 
 Known limitation: the content branch rescans referenced files first (they are
 the oldest), so a deployment with more than `limit` body images would starve the

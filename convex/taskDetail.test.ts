@@ -309,6 +309,31 @@ describe("files", () => {
     ).toBeNull();
   });
 
+  test.each(["application/xml", "text/xml", "application/atom+xml"])(
+    "the active XML type %s is refused and its blob is deleted",
+    async (mimeType) => {
+      const t = setup();
+      const { owner, taskId } = await createTask(t);
+      const storageId = await storeBlob(t, { type: mimeType });
+
+      const result = await owner.as.mutation(api.files.register, {
+        taskId,
+        storageId,
+        fileName: "aktivni.xml",
+        mimeType,
+        context: "attachment",
+      });
+
+      expect(result).toEqual({
+        ok: false,
+        error: "Tento typ souboru nahrát nejde.",
+      });
+      expect(
+        await t.run(async (ctx) => await ctx.db.system.get(storageId)),
+      ).toBeNull();
+    },
+  );
+
   test("an outsider gets no upload URL, no list and no file row", async () => {
     const t = setup();
     const { owner, taskId } = await createTask(t);

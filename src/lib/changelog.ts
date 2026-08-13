@@ -22,6 +22,15 @@ export type ChangelogEntry = {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    date: "2026-08-11",
+    title: "Bezpečnější nahrávání souborů",
+    tags: ["Soubory"],
+    items: [
+      "Aplikace odmítne aktivní XML dokumenty stejně jako HTML a SVG.",
+      "Nedokončené nahrávání už po sobě nenechá soubor v úložišti navždy.",
+    ],
+  },
+  {
     date: "2026-08-10",
     title: "Silnější úvod veřejné stránky",
     tags: ["Web"],
