@@ -45,7 +45,7 @@ Version pins that matter:
   or bump auth without re-running typecheck and the real sign-up/session E2E.
 - Pinned direct dependencies still resolve vulnerable transitive releases.
   `pnpm-workspace.yaml#overrides` keeps those direct dependencies stable while
-  forcing `postcss@8.5.25`, `sharp@0.35.3`, `nanoid@3.3.17` and
+  forcing `postcss@8.5.25`, `sharp@0.35.3`, `nanoid@3.3.18` and
   `hono@4.12.34`; `pnpm audit --prod` must stay clean.
 - `shadcn` CLI is v4: styles are presets, not `new-york`. This project used
   `shadcn init -b radix -p nova` (Radix primitives, neutral base color).
@@ -137,6 +137,7 @@ convex/
   taskStatuses.ts        # list / create / update / reorder / remove
   tasks.ts               # listByProject / get / create / updateTitle /
                          # setAssignee / move / remove (cascades to children)
+  workspace.ts           # recent tasks + project picker across memberships
   taskContent.ts         # get / save — the BlockNote document of a task
   files.ts               # generateUploadUrl / register / listByTask / remove
   comments.ts            # listByTask / create / update / remove
@@ -156,6 +157,7 @@ convex/
   notificationEmail.test.ts  # the subject, the plurals, the HTML escaping
   notificationItems.test.ts  # feed rows: who, collapsing, reading, the switch
   taskSeen.test.ts       # what counts as unseen, and that it dies with the task
+  workspace.test.ts      # cross-org order + limited-member visibility
   lib/auth.ts            # getAuthUserId / getAuthUser / getUserByAuthId
   lib/access.ts          # the permission matrix — org + project access
   lib/activity.ts        # logActivity (audit trail)
@@ -188,14 +190,15 @@ src/
                          # the two static Switzer cuts Satori reads
     opengraph-image.tsx  # the link preview every page inherits
     not-found.tsx        # 404, outside the shell, with its own frame
-    (marketing)/         # PUBLIC shell: the app's dark theme, header + footer
+    (marketing)/         # PUBLIC shell: pinned graphite tokens, header + footer
     (marketing)/o-aplikaci/page.tsx            # the landing page
     (marketing)/o-aplikaci/opengraph-image.tsx # its own preview, beside the page on purpose
     (marketing)/zmeny/   # the whole changelog, grouped by month
     (auth)/prihlaseni    # sign in       (?invite=<code> carries a pending invite)
     (auth)/registrace    # sign up       (?invite=<code> likewise)
     (dashboard)/         # AuthGuard + OrganizationProvider + AppShell
-    (dashboard)/page.tsx # `/` — the first screen after signing in — "Projekty"
+    (dashboard)/page.tsx # `/` — project overview for the current organization
+    (dashboard)/prace/   # optional work mode: conversation rail + task detail
     prehled/             # redirect to `/`, keeps interim bookmarks alive
     (dashboard)/projekt/[id]            # project board + task drawer (?ukol=<id>)
     (dashboard)/projekt/[id]/ukol/[taskId]  # redirect, keeps older links alive
@@ -212,7 +215,7 @@ src/
     invites/             # invites-panel (org- and project-scoped)
     join/                # join-screen
     layout/              # app-shell, sidebar-content, organization-switcher,
-                         # projects-nav, notifications-link, user-menu,
+                         # projects-nav, notifications-link, user-menu, theme-picker,
                          # wordmark, page-header, empty-state
     marketing/           # the public page only: site-header, site-footer,
                          # app-link, repo-button, shot, hero, facts, product,
@@ -232,14 +235,15 @@ src/
                          # task-attachments, task-comments, comment-composer,
                          # comment-item, comment-body, mention-textarea,
                          # file-type-icon, image-lightbox
+    workspace/           # shell, provider, rail, command menu, task list, canvas
   hooks/                 # use-current-user, use-current-organization, use-theme,
-                         # use-now, use-autosave-text
+                         # use-now, use-autosave-text, use-workspace-rail-width
   lib/                   # auth-client, auth-redirect, auth-server, auth-errors,
                          # blocknote-cs, changelog, clipboard, comment-draft,
                          # current-organization, format, invites, og,
                          # organization, project-emojis, project-icons, repo,
                          # save-state, shots, task-status-colors, tasks, theme,
-                         # upload, user, utils
+                         # upload, user, utils, workspace-rail
   proxy.ts               # `/` answers to the session cookie: app, or the
                          # public page rewritten in — see **Routes**
 public/marketing/        # the captures of the running app the page is built on,
@@ -366,7 +370,8 @@ taskStatuses         projectId, organizationId, name, color, order, kind
                      by_project
 tasks                projectId, organizationId, title, statusId, order,
                      createdBy, assigneeId?, updatedAt
-                     by_project · by_status · by_project_assignee
+                     by_project · by_project_updated_at · by_status ·
+                     by_project_assignee
 taskContent          taskId, projectId, organizationId, content, updatedBy,
                      updatedAt                                        by_task
 files                taskId, projectId, organizationId, storageId, fileName,
@@ -535,11 +540,11 @@ them for the upload itself, not only for the input.
 
 ### Where a project is created
 
-**The rail owns "Nový projekt"** — a dashed button under the project list
+**The standard rail owns "Nový projekt"** — a dashed button under the project list
 (`src/components/projects/new-project-button.tsx`), visible only to `full`
-members, reachable from every screen. The dashboard has *no* create action: it
-owns the heading "Projekty", and a second button would have put the same label
-on the same screen twice. Its empty state points at the rail instead.
+members, reachable from every ordinary screen. The optional work mode dedicates
+its rail to conversations and links back to the overview instead of duplicating
+project navigation or creation.
 
 ## Tasks and the board (Phase 3)
 
@@ -651,11 +656,12 @@ server returned a membership for, so a stale id falls back to the first one.
 `storeOrganizationId` is exported separately for the public join page, which
 lives outside the provider.
 
-## The task drawer (Phase 4, reshaped in Phase 6)
+## The task detail (Phase 4, reshaped in Phases 6 and 17)
 
-A task never leaves its board. Clicking a card opens the detail in a **drawer on
-the right of `/projekt/[id]`**; the board stays where it was, and the open task
-is written into the address as `?ukol=<taskId>`.
+The same `TaskDetailPanel` opens in two places. Clicking a board card uses the
+**drawer on the right of `/projekt/[id]`**, so the board stays in place. The
+optional work mode at `/prace` renders it directly in the large middle canvas. Both
+surfaces keep the open task in `?ukol=<taskId>`.
 
 - `TaskDrawer` (`src/components/tasks/task-drawer.tsx`) is a **non-modal**
   `Sheet`, which is why `SheetContent` takes `showOverlay`: an overlay would
@@ -680,6 +686,41 @@ is written into the address as `?ukol=<taskId>`.
   the previous board's open task.
 - `/projekt/[id]/ukol/[taskId]` survives as a `redirect` to `?ukol=`, for links
   made before the drawer existed.
+
+### The optional work mode
+
+`workspace.listTasks({ limit })` is the inbox behind `/prace`. It resolves all
+organizations the caller belongs to and then every project they may open,
+including the `limited` membership rule. Every project contributes at most
+`limit + 1` tasks through
+`tasks.by_project_updated_at`; the bounded pages are merged and sorted by
+`updatedAt`, so a title, status, assignment, body edit, file or comment moves the
+task back up. The response adds its project, status, řešitel and latest comment
+preview and returns `hasMore` for the manual 40 → 80 → 100 page.
+
+The standard `/` dashboard and its project rail remain the signed-in default.
+"Pracovní režim" in that rail opens the full-height two-pane shell. Its desktop
+rail is a docked strip whose width belongs to the user — drag the right edge,
+focus it and use the arrows (16 px step), or double-click to reset; 320 px by
+default, clamped to 260–520, persisted in
+`localStorage["workeee-workspace-rail-width"]` through the
+`useSyncExternalStore` store in `src/lib/workspace-rail.ts` (server snapshot is
+the default, so a stored width never mismatches hydration). Apart
+from the brand, the return link and the user menu, the rail
+belongs entirely to local search, the `Všechny / Moje` filter and the task list;
+there is no organization switcher or duplicate project navigation.
+`WorkspaceProvider` shares the selected task with the middle canvas and performs
+the same shallow address write as the board. With no explicit selection, the
+newest task across all memberships opens immediately. `Cmd+K` opens the single
+workspace command menu; its first action creates a task without leaving the
+mode, while the remaining results open recent tasks. The visible "Nový úkol"
+row in the rail skips directly to the project picker. That picker uses every
+project returned by `workspace.listTasks`, including empty projects, and labels
+duplicates with their organization. After the project comes one title field;
+Enter creates the task in its core `todo` status (or the project's first status
+as a defensive fallback) and opens the new detail in the canvas. Up/down,
+Enter, Backspace and Escape operate the whole flow from the keyboard. Below
+`lg` the rail is the existing left sheet and the task panel takes the viewport.
 
 Order inside the panel: header (project name · save indicator · delete · close)
 → title → status + assignee selects → meta line → **description editor** →
@@ -783,8 +824,8 @@ not a substitute for the other:
   has to scan that bundle to emit them.
 
 The same file repoints BlockNote's `--bn-colors-*` at our tokens under
-`.workeee-editor`, which is what makes both themes correct; the `theme` prop only
-flips `data-color-scheme` and comes from `useTheme()`.
+`.workeee-editor`, which is what makes every palette correct; the `theme` prop
+only receives its light/dark appearance from `useTheme()`.
 
 Geometry — Notion's gutter, and the reason the panel is indented:
 
@@ -1140,7 +1181,8 @@ pnpm exec convex run notifications:flush '{"userId": "..."}'
 
 | Route | Access | What it is |
 |---|---|---|
-| `/` | **both** | With a session cookie: the dashboard — "Projekty", every visible project of the current organization as a card; creating one lives in the rail, not here; with no membership it renders the onboarding screen. Without one, `src/proxy.ts` **rewrites** (never redirects) to `/o-aplikaci`, so the bare domain is the app for its users and the pitch for everybody else — including crawlers and unfurls, which carry no cookie. The check is the cookie's presence, not its validity: choosing a page is not authorization, and a stale cookie just lands on `AuthGuard` |
+| `/` | **both** | With a session cookie: the project overview for the selected organization; with no membership it renders onboarding. Without a cookie, `src/proxy.ts` **rewrites** (never redirects) to `/o-aplikaci`, so the bare domain is the app for its users and the pitch for everybody else. The cookie check chooses a page only; Convex still authorizes every read |
+| `/prace` | authenticated | Optional focused mode: recent tasks from every visible project in every organization share a rail the user can resize (320 px default, 260–520, remembered), newest activity first, with the selected task's full editable detail in the middle. `Cmd+K` opens recent tasks and new-task creation across projects; `?ukol=<taskId>` keeps the open task linkable |
 | `/o-aplikaci` | **public** | The landing page: what it is, what it does, how to host it yourself, the licence, the latest changes, over captures of the real application. Static, no auth, no Convex. A signed-in visitor gets a quiet "Přehled" link in the header, never a redirect |
 | `/zmeny` | **public** | The whole changelog, grouped by month |
 | `/prehled` | — | Redirect to `/` — the dashboard lived here briefly while the landing page held the base URL |
@@ -1167,15 +1209,14 @@ somebody. The header's one client component (`marketing/app-link.tsx`) is the
 door either way: "Přehled" for a validated session, "Přihlásit se" for a
 visitor, and nothing while Convex is still deciding which.
 
-- **It is the app's dark theme, not a second palette.** The marketing layout
-  puts the app's own `dark` class on its root, so `bg-background`,
-  `border-border` and `text-primary` on this page are the same tokens the board
-  paints with. That is what lets a screenshot of the product sit on the page
-  with nothing around it and still read as part of the layout. A visitor whose
-  app theme is light still sees this page dark, because the class is on the
-  layout and not on `<html>`; `html:has(.workeee-marketing)` paints the document
-  itself, because a nested layout cannot touch `<html>` and without it an
-  overscroll bounce shows the app's background through.
+- **It is pinned to the original graphite presentation.** User-selected themes
+  belong to the signed-in work surface; the public page and its existing product
+  captures must stay one composed scene. The marketing root therefore carries
+  `dark` and locally overrides the same semantic tokens (`--background`,
+  `--primary`, …) with graphite + lime. It is not a second token vocabulary.
+  `html:has(.workeee-marketing)` paints the document itself, because a nested
+  layout cannot touch `<html>` and without it an overscroll bounce shows the
+  stored app palette through.
 - It has **one job and one button**: "Otevřít na GitHubu", which appears exactly
   twice, in the hero and at the end of the open-source section. The header
   carries none, because a third copy following the reader down the page would
@@ -1319,29 +1360,23 @@ everything is a git log with worse formatting.
 
 ## Design system
 
-**One system, two surfaces.** The public page and the application are painted
-from the same tokens; there is no marketing palette. See **The public page**.
+**One semantic token system, several moods.** The signed-in application may
+change palette, but components only know `background`, `card`, `primary`,
+`border`, and the rest of the existing vocabulary. See **The public page** for
+its deliberately pinned presentation.
 
-- Tokens are **HSL channel triples** on `:root` / `.dark` in
-  `src/app/globals.css`, exposed via `@theme inline` as `hsl(var(--token))`.
-- **The neutrals are cold graphite.** Every gray carries a little blue (hue
-  210-220), so the near-black reads as machined metal rather than as warm paper
-  turned down. Nothing is pure black or pure white at either end: the dark
-  background is `220 14% 5%`, the light one `210 22% 98%`.
-- **One accent: signal lime**, `74 86% 62%` in the dark theme and `76 88% 25%`
-  in the light one, on `--primary` and `--ring`. Two things about it are
-  deliberate:
-  - **The hue is one the status palette does not own.** Gray, blue, indigo,
-    violet, amber, orange, red, green and teal are all task statuses, so a brand
-    button painted in any of them would read as a status chip. Lime belongs to
-    the product and never to a column.
-  - **It inverts with the theme** instead of keeping one lightness: a bright
-    chip on graphite, a deep one on paper. That is what keeps a filled button
-    both legible and clearly bounded in both modes, which a single mid-lime
-    cannot be. Measured: dark fg 17.9:1 · muted 7.3:1 · ink-on-accent 13.4:1;
-    light fg 17.1:1 · muted 5.8:1 · ink-on-accent 5.1:1.
-  - `--accent` is still a neutral hover surface. Never repaint it with the brand
-    color.
+- Tokens are **HSL channel triples** on `:root` and named `[data-theme]`
+  overrides in `src/app/globals.css`, exposed via `@theme inline` as
+  `hsl(var(--token))`.
+- Six palettes ship together: light **Obloha · Šeřík · Písek** and dark
+  **Soumrak · Les · Švestka**. Obloha is the light default. Dark backgrounds
+  stay at 12–13% lightness instead of pure black, and every palette lightly
+  tints its background, cards, hover surfaces, borders and sidebar from the
+  same hue family rather than changing only the primary button.
+- Each palette has **exactly one saturated accent**, on `--primary` and
+  `--ring`. Task status colors remain semantic and localized to status controls;
+  they never tint the shell. `--accent` remains the quiet hover/selected surface,
+  not a second saturated color.
 - **Geometry.** `--radius: 0.375rem` (6 px) and the ramp is written out rather
   than derived from it: `sm 4 · md 5 · lg 6 · xl 8 · 2xl 12 · 3xl 16`. Controls
   are 6, cards 8, dialogs and sheets 12. **Badges are tags at 5, not pills** —
@@ -1352,8 +1387,8 @@ from the same tokens; there is no marketing palette. See **The public page**.
   without touching its edges. Icons `size-4`.
 - **Elevation is for things that float and for nothing else.** A card is a
   hairline `border-border` on `bg-card` with no shadow; only popovers, dropdowns,
-  dialogs and the drawer carry one, and it is tinted to the background hue
-  (`hsl(220 40% 2% / …)`), never neutral black.
+  dialogs and the drawer carry one, tinted through the palette's `--shadow`
+  token rather than hardcoded black.
 - **Two typefaces, both self-hosted from `src/app/fonts`, both variable, both a
   single file**, both wired in `layout.tsx` with `next/font/local`. Nothing is
   fetched from a font CDN at runtime or at build.
@@ -1374,21 +1409,23 @@ from the same tokens; there is no marketing palette. See **The public page**.
   it), and everything else is 15 px or smaller. That contrast is the hierarchy;
   nothing in between competes. On the public page the same idea is stretched
   further: one display word at up to 16 vw and then nothing above 3 rem.
-- Dark mode is **class-based and hand-rolled**: `@custom-variant dark (&:is(.dark *, .dark))`,
-  a pre-hydration inline script in `layout.tsx` reading
-  `localStorage["workeee-theme"]`, and `useTheme()` (`src/hooks/use-theme.ts`)
-  which observes the `dark` class on `<html>` via `useSyncExternalStore`.
-  **No `next-themes`.** The variant matches `.dark` itself and not only its
-  descendants, which is what lets the marketing layout carry the class on its
-  own root.
+- Themes are **hand-rolled and class-compatible**: the pre-hydration script in
+  `layout.tsx` reads `localStorage["workeee-theme"]`, writes `data-theme` before
+  first paint, and adds `.dark` for the three dark palettes. `useTheme()`
+  observes `data-theme` through `useSyncExternalStore`; BlockNote and Sonner get
+  the derived light/dark appearance. Old stored values `light` / `dark` migrate
+  to Obloha / Soumrak. **No `next-themes`.** The Tailwind variant still matches
+  `.dark` itself so the marketing root can force its own appearance.
 - Breakpoint contract: `lg:` (1024 px) splits the desktop sidebar from the
   mobile drawer. One custom breakpoint exists, **`board:` (1408 px)**, declared
   in `globals.css` — it is not about the shell but about the board; see
   **How wide the board has to be**.
-- The shell's content column is **`max-w-6xl`**, so the widest the board strip
+- The standard shell's content column is **`max-w-6xl`**, so the widest the board strip
   can ever be is 1088 px. `main` also carries **`min-w-0`** — see
   **How wide the board has to be**, it is the difference between the board
-  scrolling and the page scrolling.
+  scrolling and the page scrolling. `/prace` is the deliberate exception: its
+  two-pane workspace fills the viewport, while the task detail itself stays at
+  `max-w-3xl` for readable text.
 - A project with no icon gets a **monochrome** chip with its first letter, not a
   deterministic color. A color per project would put a sixth and seventh hue on
   a screen that already spends its color on statuses and its accent on the
@@ -1498,12 +1535,9 @@ and re-shared by the chat, not by the person who was invited, and
 - All user-facing text is **Czech**, sentence case, concrete, no marketing voice.
   **No duplicate labels on one screen** — this is the product owner's first
   rule, and it decides real structure, not just wording:
-  - The **dashboard owns the word "Projekty", the rail owns the "Nový projekt"
-    action** — each exactly once, on every screen. The rail carries no section
-    caption and says nothing when the list is empty (the dashboard says it);
-    the dashboard carries no create button (the rail has it, and it is reachable
-    from every page). The wordmark at the top of the rail is the link back to
-    the dashboard.
+  - The standard rail owns the word **"Projekty"** and the **"Nový projekt"**
+    action, each once. The work-mode rail owns only the task conversation list
+    and one "Zpět na přehled" link; it does not repeat organizations or projects.
   - A dialog's description must not be a table of contents of its own sections.
     When there is nothing to add, drop `DialogDescription` and pass
     `aria-describedby={undefined}` to `DialogContent` — that is how Radix is
@@ -1513,7 +1547,7 @@ and re-shared by the chat, not by the person who was invited, and
     "Nová organizace" / "Nový projekt" in the menu that opens it *and* in the
     dialog title, and the dialog's submit button is the bare verb ("Vytvořit").
   - A toggle's label names what the click will do, not what is on now
-    ("Světlý režim" while the app is dark).
+    (the selected appearance is shown by a check in the theme picker).
 - All code identifiers, comments and table names are **English**. Routes follow
   the business vocabulary and are therefore Czech (`/prihlaseni`, `/registrace`).
 - Auth error copy lives in one place: `src/lib/auth-errors.ts`.
@@ -1558,8 +1592,9 @@ Day-one decisions:
    gets is decided by the invite they accepted — organization invite → `full`,
    project invite → `limited`. Enforced server-side in `convex/lib/access.ts`;
    the UI only mirrors it. See **Access model**.
-4. **Accent:** signal lime, one hue no task status owns. **Typefaces:** Switzer
-   for everything a person reads, JetBrains Mono for what a machine reads back.
+4. **Appearance:** one semantic token vocabulary with six selectable palettes;
+   one accent inside each. **Typefaces:** Switzer for everything a person reads,
+   JetBrains Mono for what a machine reads back.
 5. **Locale:** Czech UI, English code.
 6. **Audited actions**: organization created/renamed, invite
    created/accepted/revoked, member role changed/removed, project
@@ -1677,10 +1712,37 @@ Day-one decisions:
   copy column is narrower than the hole it used to leave and says the two things
   the page's first screen was not saying, and a phone gets the app's own phone
   layout. See **The interleave**.
+- **Phase 17 (done).** The project overview remains the signed-in front door and
+  gained an optional "Pracovní režim". Inside it, tasks from every visible
+  project across every organization share one recent-activity rail, a comment
+  or edit moves its task upward, `Všechny / Moje` and search narrow the list,
+  and the full existing task detail opens in the middle without a trip through
+  a project board. The work-mode rail contains no organization or project
+  navigation; one link returns to the normal overview. A "Nový úkol" row and
+  the global `Cmd+K` command menu now create work in any visible project and
+  open it in place, with no board navigation in between.
+- **Phase 18 (done).** The binary light/dark switch became six named themes:
+  three light and three dark. The default work surface is pale blue instead of
+  white or black, dark themes use lifted colored backgrounds, and the account
+  menu previews every palette before applying it. The choice is local to the
+  browser, applies before first paint, and old light/dark preferences migrate.
 - **Later.** List view, due dates, filters in the URL, activity timeline,
   audit log surface.
 
 ## Continual learning
+
+- **Tests around `lastSeenAt` must state their time ordering.** Unread comments
+  are deliberately queried with `_creationTime > lastSeenAt`; two immediate
+  test transactions may share a millisecond, especially after the full suite
+  warms the harness. Move Vitest's fake clock by 1 ms before inserting the
+  "later" comment instead of making the assertion depend on wall-clock luck.
+
+- **A cross-project recent list must merge project indexes, not scan an
+  organization and filter afterwards.** Filtering a bounded organization page
+  for a `limited` member can hide their older visible work behind newer tasks
+  they may not open; collecting the whole organization only moves the outage to
+  later. `by_project_updated_at` plus one `limit + 1` page per already-authorized
+  project is bounded, complete for the global first page, and leaks nothing.
 
 - **Next 16 renamed middleware: the file is `src/proxy.ts` with a default
   export**, and it is the right place for exactly one kind of decision — which
@@ -1697,26 +1759,18 @@ Day-one decisions:
   hour went into this one; the tell is that `curl`ing the raw `/public` path
   returns the new bytes while `/_next/image?...` answers `X-Nextjs-Cache: HIT`.
 
-- **A second palette is a second design system, however carefully it is named.**
-  The public page used to carry its own `--mk-*` tokens so it could be near-black
-  while the app was themable. It worked, and it also meant every screenshot of
-  the product landed on the page as a rectangle of slightly different greys. The
-  fix was to delete the palette and put the app's own `dark` class on the
-  marketing layout: same tokens, same greys, and a capture now dissolves into the
-  page. The rule that came out of it: if two surfaces are one product, they get
-  one set of tokens, and "the page needs to be dark when the app is light" is a
-  question about where the class goes, not about how many palettes there are.
-- **Pick the brand accent from a hue the product's data does not already use.**
-  The old indigo was also a task-status color, so a primary button and a status
-  chip were the same object at a glance. The status palette owns gray, blue,
-  indigo, violet, amber, orange, red, green and teal; the brand took lime, which
-  is the largest gap left in the wheel. This is a functional constraint, not a
-  taste one.
-- **An accent that works on near-black usually does not work on near-white, and
-  the answer is to let it invert with the theme.** A bright lime button on a
-  white page has a 1.2:1 boundary against its background — legible label,
-  invisible button. Holding the hue and moving the lightness (62% dark, 25%
-  light) keeps one accent while both modes get a real edge.
+- **A second token vocabulary is a second design system.** The public page used
+  to carry `--mk-*` names beside the app tokens, which made shared components and
+  screenshots disagree. Named themes now override the same semantic token set;
+  even the public page's pinned graphite presentation speaks `--background`,
+  `--primary`, `--border`, and nothing else.
+- **A palette must recolor the neutrals, not only the button.** Swapping one
+  accent on unchanged gray surfaces feels like a skin. Obloha, Šeřík, Písek,
+  Soumrak, Les and Švestka each move the background, card, hover, border,
+  sidebar, overlay and shadow together, while retaining one saturated accent.
+- **Dark does not mean black.** Raising the dark backgrounds to 12–13% lightness
+  leaves room for a darker overlay and visibly separates the work surface,
+  cards and rail without adding shadows or decorative containers.
 - **Satori renders a variable font at its default instance.** Handing it the
   same `wght 100-900` file the app uses gets you a display headline at weight
   400 with no error and no warning. It also cannot read WOFF2, which is the only

@@ -22,6 +22,35 @@ export type ChangelogEntry = {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    date: "2026-08-13",
+    title: "Šest barevných vzhledů",
+    tags: ["Vzhled"],
+    items: [
+      "V nabídce účtu lze vybírat ze tří světlých a tří tmavých barevných vzhledů.",
+      "Výchozí pracovní plocha je světle modrá; tmavé varianty mají barevný, zesvětlený základ místo téměř černé.",
+      "Vybraný vzhled se uloží v prohlížeči a použije se ještě před vykreslením stránky.",
+    ],
+  },
+  {
+    date: "2026-08-13",
+    title: "Panel úkolů podle vaší ruky",
+    tags: ["Úkoly"],
+    items: [
+      "Šířku levého panelu pracovního režimu změníte tažením za jeho pravý okraj nebo šipkami na klávesnici; aplikace si ji pamatuje. Dvojklik na okraj vrátí výchozí šířku.",
+    ],
+  },
+  {
+    date: "2026-08-13",
+    title: "Úkoly napříč projekty na jednom místě",
+    tags: ["Úkoly"],
+    items: [
+      "Původní přehled projektů zůstává výchozí. Z levého panelu lze nově zapnout samostatný pracovní režim.",
+      "V pracovním režimu zabírají celý levý panel úkoly ze všech dostupných projektů a organizací, seřazené podle poslední změny nebo komentáře.",
+      "Úkol se otevře rovnou uprostřed včetně popisu, příloh a komentářů; seznam lze prohledat nebo omezit jen na vaše úkoly.",
+      "Nový úkol lze vytvořit rovnou z pracovního režimu: kliknutím v panelu nebo přes ⌘K, výběrem projektu a napsáním názvu.",
+    ],
+  },
+  {
     date: "2026-08-11",
     title: "Bezpečnější nahrávání souborů",
     tags: ["Soubory"],

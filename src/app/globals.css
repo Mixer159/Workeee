@@ -20,111 +20,35 @@
 @import "@blocknote/shadcn/style.css";
 @source "../../node_modules/@blocknote/shadcn/dist/blocknote-shadcn.js";
 
-/*
- * `.dark` is the app's theme class on `<html>`. `.workeee-marketing` carries it
- * too, so the public page is not a second palette pretending to be one system:
- * it is literally the app's dark theme, which is why a screenshot of the board
- * melts into the page instead of sitting on it as a rectangle.
- */
+/* `.dark` remains the semantic appearance flag consumed by Tailwind and
+ * third-party controls. Named palettes live on `data-theme`; every dark
+ * palette adds this class before first paint. The marketing surface carries
+ * `.dark` locally and intentionally keeps the original graphite palette. */
 @custom-variant dark (&:is(.dark *, .dark));
 
-/*
- * Design tokens — HSL channel triples, consumed through `@theme inline` below.
- *
- * The neutrals are **cold graphite**: every gray carries a little blue (hue
- * 210-220) so the near-black reads as machined metal rather than as warm paper
- * turned down. Nothing is pure black or pure white at either end.
- *
- * The one accent is **signal lime** (hue ~75). It is deliberately a hue the
- * task-status palette does not own — gray, blue, indigo, violet, amber,
- * orange, red, green and teal are all statuses, so a brand-colored button that
- * borrowed one of them would read as a status chip. Lime belongs to the
- * product, never to a column.
- *
- * The accent inverts with the theme instead of keeping one lightness: bright
- * lime on graphite, deep lime on paper. That is what keeps a filled button
- * legible *and* clearly bounded in both modes. Contrast, measured:
- * dark  fg 17.9:1 · muted 7.3:1 · ink-on-accent 13.4:1 · accent-on-bg 15.1:1
- * light fg 17.1:1 · muted 5.8:1 · ink-on-accent  5.1:1 · accent-on-bg  4.9:1
- */
-:root {
-  --background: 210 22% 98%;
-  --foreground: 220 22% 10%;
-
-  --card: 0 0% 100%;
-  --card-foreground: 220 22% 10%;
-
-  --popover: 0 0% 100%;
-  --popover-foreground: 220 22% 10%;
-
-  --primary: 76 88% 25%;
-  --primary-foreground: 0 0% 100%;
-
-  --secondary: 215 20% 95%;
-  --secondary-foreground: 220 22% 10%;
-
-  --muted: 215 20% 95%;
-  --muted-foreground: 217 11% 40%;
-
-  --accent: 214 22% 93%;
-  --accent-foreground: 220 22% 10%;
-
-  --destructive: 0 72% 42%;
-  --destructive-foreground: 0 0% 100%;
-
-  --border: 214 18% 89%;
-  --input: 214 16% 82%;
-  --ring: 76 88% 25%;
-
-  --sidebar: 214 24% 96%;
-  --sidebar-foreground: 220 22% 10%;
-  --sidebar-primary: 76 88% 25%;
-  --sidebar-primary-foreground: 0 0% 100%;
-  --sidebar-accent: 214 24% 91%;
-  --sidebar-accent-foreground: 220 22% 10%;
-  --sidebar-border: 214 18% 88%;
-  --sidebar-ring: 76 88% 25%;
-
-  --chart-1: 76 88% 25%;
-  --chart-2: 217 11% 40%;
-  --chart-3: 214 14% 58%;
-  --chart-4: 220 22% 22%;
-  --chart-5: 214 16% 74%;
-
-  /* The control radius. Everything else in the ramp is spelled out below, so
-     "how round is a card" is a value someone chose and not a multiplication. */
-  --radius: 0.375rem;
-}
-
-.dark {
+/* The public site stays on the established graphite + lime composition. It
+ * carries `.dark` locally, so these values override whichever app palette is
+ * stored on `<html>` without becoming a second token vocabulary. */
+.workeee-marketing {
   --background: 220 14% 5%;
   --foreground: 210 17% 96%;
-
   --card: 220 13% 8%;
   --card-foreground: 210 17% 96%;
-
   --popover: 220 13% 11%;
   --popover-foreground: 210 17% 96%;
-
   --primary: 74 86% 62%;
   --primary-foreground: 74 60% 7%;
-
   --secondary: 220 12% 14%;
   --secondary-foreground: 210 17% 96%;
-
   --muted: 220 12% 14%;
   --muted-foreground: 216 11% 63%;
-
   --accent: 220 12% 16%;
   --accent-foreground: 210 17% 96%;
-
   --destructive: 4 80% 63%;
   --destructive-foreground: 220 30% 6%;
-
   --border: 220 11% 17%;
   --input: 220 11% 24%;
   --ring: 74 86% 62%;
-
   --sidebar: 220 14% 6%;
   --sidebar-foreground: 210 17% 96%;
   --sidebar-primary: 74 86% 62%;
@@ -133,12 +57,266 @@
   --sidebar-accent-foreground: 210 17% 96%;
   --sidebar-border: 220 11% 15%;
   --sidebar-ring: 74 86% 62%;
-
   --chart-1: 74 86% 62%;
   --chart-2: 216 11% 63%;
   --chart-3: 216 10% 45%;
   --chart-4: 210 17% 86%;
   --chart-5: 216 10% 32%;
+  --overlay: 220 40% 2%;
+  --shadow: 220 40% 2%;
+}
+
+/*
+ * Design tokens — HSL channel triples, consumed through `@theme inline` below.
+ *
+ * The signed-in app has three light and three dark palettes. Each palette owns
+ * one accent plus gently tinted neutral surfaces, so switching it changes the
+ * whole atmosphere without turning status colors into decoration. The default
+ * light palette is intentionally pale blue rather than stark white; every dark
+ * background stays around 12–13% lightness rather than collapsing to black.
+ */
+:root {
+  --background: 216 45% 97%;
+  --foreground: 222 32% 13%;
+
+  --card: 216 55% 99%;
+  --card-foreground: 222 32% 13%;
+
+  --popover: 216 55% 99%;
+  --popover-foreground: 222 32% 13%;
+
+  --primary: 224 76% 43%;
+  --primary-foreground: 0 0% 100%;
+
+  --secondary: 218 39% 93%;
+  --secondary-foreground: 222 32% 13%;
+
+  --muted: 218 39% 93%;
+  --muted-foreground: 219 15% 39%;
+
+  --accent: 218 46% 90%;
+  --accent-foreground: 222 32% 13%;
+
+  --destructive: 0 72% 42%;
+  --destructive-foreground: 0 0% 100%;
+
+  --border: 218 31% 86%;
+  --input: 218 26% 77%;
+  --ring: 224 76% 43%;
+
+  --sidebar: 218 48% 94%;
+  --sidebar-foreground: 222 32% 13%;
+  --sidebar-primary: 224 76% 43%;
+  --sidebar-primary-foreground: 0 0% 100%;
+  --sidebar-accent: 218 44% 88%;
+  --sidebar-accent-foreground: 222 32% 13%;
+  --sidebar-border: 218 31% 84%;
+  --sidebar-ring: 224 76% 43%;
+
+  --chart-1: 224 76% 43%;
+  --chart-2: 196 72% 42%;
+  --chart-3: 268 58% 49%;
+  --chart-4: 154 50% 38%;
+  --chart-5: 12 68% 45%;
+
+  --overlay: 222 45% 9%;
+  --shadow: 222 45% 12%;
+
+  /* The control radius. Everything else in the ramp is spelled out below, so
+     "how round is a card" is a value someone chose and not a multiplication. */
+  --radius: 0.375rem;
+}
+
+[data-theme="lilac"] {
+  --background: 270 45% 97%;
+  --foreground: 258 28% 14%;
+  --card: 270 55% 99%;
+  --card-foreground: 258 28% 14%;
+  --popover: 270 55% 99%;
+  --popover-foreground: 258 28% 14%;
+  --primary: 268 58% 43%;
+  --primary-foreground: 0 0% 100%;
+  --secondary: 270 34% 93%;
+  --secondary-foreground: 258 28% 14%;
+  --muted: 270 34% 93%;
+  --muted-foreground: 258 13% 40%;
+  --accent: 269 42% 90%;
+  --accent-foreground: 258 28% 14%;
+  --border: 269 27% 86%;
+  --input: 269 23% 77%;
+  --ring: 268 58% 43%;
+  --sidebar: 270 40% 94%;
+  --sidebar-foreground: 258 28% 14%;
+  --sidebar-primary: 268 58% 43%;
+  --sidebar-primary-foreground: 0 0% 100%;
+  --sidebar-accent: 269 38% 88%;
+  --sidebar-accent-foreground: 258 28% 14%;
+  --sidebar-border: 269 27% 84%;
+  --sidebar-ring: 268 58% 43%;
+  --chart-1: 268 58% 43%;
+  --chart-2: 318 57% 48%;
+  --chart-3: 225 66% 52%;
+  --chart-4: 154 45% 39%;
+  --chart-5: 24 70% 48%;
+  --overlay: 258 38% 9%;
+  --shadow: 258 38% 12%;
+}
+
+[data-theme="sand"] {
+  --background: 38 45% 96%;
+  --foreground: 25 28% 13%;
+  --card: 40 56% 99%;
+  --card-foreground: 25 28% 13%;
+  --popover: 40 56% 99%;
+  --popover-foreground: 25 28% 13%;
+  --primary: 12 68% 40%;
+  --primary-foreground: 0 0% 100%;
+  --secondary: 36 36% 91%;
+  --secondary-foreground: 25 28% 13%;
+  --muted: 36 36% 91%;
+  --muted-foreground: 28 13% 38%;
+  --accent: 35 42% 88%;
+  --accent-foreground: 25 28% 13%;
+  --border: 33 24% 82%;
+  --input: 32 20% 72%;
+  --ring: 12 68% 40%;
+  --sidebar: 36 45% 92%;
+  --sidebar-foreground: 25 28% 13%;
+  --sidebar-primary: 12 68% 40%;
+  --sidebar-primary-foreground: 0 0% 100%;
+  --sidebar-accent: 34 38% 85%;
+  --sidebar-accent-foreground: 25 28% 13%;
+  --sidebar-border: 33 24% 80%;
+  --sidebar-ring: 12 68% 40%;
+  --chart-1: 12 68% 40%;
+  --chart-2: 42 68% 40%;
+  --chart-3: 152 40% 38%;
+  --chart-4: 212 48% 46%;
+  --chart-5: 327 47% 46%;
+  --overlay: 25 40% 8%;
+  --shadow: 25 40% 11%;
+}
+
+[data-theme="dusk"] {
+  --background: 224 22% 12%;
+  --foreground: 216 25% 95%;
+
+  --card: 224 20% 15%;
+  --card-foreground: 216 25% 95%;
+
+  --popover: 224 19% 18%;
+  --popover-foreground: 216 25% 95%;
+
+  --primary: 196 88% 65%;
+  --primary-foreground: 222 35% 10%;
+
+  --secondary: 223 18% 21%;
+  --secondary-foreground: 216 25% 95%;
+
+  --muted: 223 18% 21%;
+  --muted-foreground: 218 15% 68%;
+
+  --accent: 222 19% 25%;
+  --accent-foreground: 216 25% 95%;
+
+  --destructive: 4 80% 63%;
+  --destructive-foreground: 224 32% 8%;
+
+  --border: 222 16% 27%;
+  --input: 221 14% 34%;
+  --ring: 196 88% 65%;
+
+  --sidebar: 225 24% 14%;
+  --sidebar-foreground: 216 25% 95%;
+  --sidebar-primary: 196 88% 65%;
+  --sidebar-primary-foreground: 222 35% 10%;
+  --sidebar-accent: 223 20% 22%;
+  --sidebar-accent-foreground: 216 25% 95%;
+  --sidebar-border: 222 17% 25%;
+  --sidebar-ring: 196 88% 65%;
+
+  --chart-1: 196 88% 65%;
+  --chart-2: 267 78% 72%;
+  --chart-3: 151 65% 60%;
+  --chart-4: 34 88% 64%;
+  --chart-5: 338 79% 70%;
+
+  --overlay: 224 45% 4%;
+  --shadow: 224 45% 4%;
+}
+
+[data-theme="forest"] {
+  --background: 160 23% 12%;
+  --foreground: 145 22% 94%;
+  --card: 159 21% 15%;
+  --card-foreground: 145 22% 94%;
+  --popover: 158 20% 18%;
+  --popover-foreground: 145 22% 94%;
+  --primary: 154 65% 62%;
+  --primary-foreground: 158 45% 8%;
+  --secondary: 158 18% 21%;
+  --secondary-foreground: 145 22% 94%;
+  --muted: 158 18% 21%;
+  --muted-foreground: 150 12% 67%;
+  --accent: 157 19% 25%;
+  --accent-foreground: 145 22% 94%;
+  --destructive: 4 80% 66%;
+  --destructive-foreground: 160 34% 7%;
+  --border: 157 16% 27%;
+  --input: 156 14% 34%;
+  --ring: 154 65% 62%;
+  --sidebar: 161 25% 14%;
+  --sidebar-foreground: 145 22% 94%;
+  --sidebar-primary: 154 65% 62%;
+  --sidebar-primary-foreground: 158 45% 8%;
+  --sidebar-accent: 158 20% 22%;
+  --sidebar-accent-foreground: 145 22% 94%;
+  --sidebar-border: 157 17% 25%;
+  --sidebar-ring: 154 65% 62%;
+  --chart-1: 154 65% 62%;
+  --chart-2: 190 72% 60%;
+  --chart-3: 46 84% 64%;
+  --chart-4: 271 68% 72%;
+  --chart-5: 8 75% 67%;
+  --overlay: 160 45% 4%;
+  --shadow: 160 45% 4%;
+}
+
+[data-theme="plum"] {
+  --background: 300 18% 13%;
+  --foreground: 300 17% 95%;
+  --card: 300 17% 16%;
+  --card-foreground: 300 17% 95%;
+  --popover: 300 16% 19%;
+  --popover-foreground: 300 17% 95%;
+  --primary: 328 78% 70%;
+  --primary-foreground: 330 40% 9%;
+  --secondary: 300 14% 22%;
+  --secondary-foreground: 300 17% 95%;
+  --muted: 300 14% 22%;
+  --muted-foreground: 300 10% 68%;
+  --accent: 300 15% 26%;
+  --accent-foreground: 300 17% 95%;
+  --destructive: 8 84% 67%;
+  --destructive-foreground: 300 28% 8%;
+  --border: 300 13% 29%;
+  --input: 300 12% 36%;
+  --ring: 328 78% 70%;
+  --sidebar: 301 20% 15%;
+  --sidebar-foreground: 300 17% 95%;
+  --sidebar-primary: 328 78% 70%;
+  --sidebar-primary-foreground: 330 40% 9%;
+  --sidebar-accent: 300 16% 23%;
+  --sidebar-accent-foreground: 300 17% 95%;
+  --sidebar-border: 300 14% 27%;
+  --sidebar-ring: 328 78% 70%;
+  --chart-1: 328 78% 70%;
+  --chart-2: 267 73% 73%;
+  --chart-3: 191 76% 64%;
+  --chart-4: 42 89% 65%;
+  --chart-5: 143 57% 61%;
+  --overlay: 300 38% 4%;
+  --shadow: 300 38% 4%;
 }
 
 @theme inline {

@@ -1,5 +1,5 @@
 import { convexTest } from "convex-test";
-import { describe, expect, test } from "vitest";
+import { describe, expect, test, vi } from "vitest";
 import { api } from "./_generated/api";
 import type { Id } from "./_generated/dataModel";
 import { serializeCommentBody } from "./lib/commentBody";
@@ -105,42 +105,51 @@ describe("what counts as unseen", () => {
   });
 
   test("somebody else's comment counts as unread, your own never does", async () => {
-    const t = setup();
-    const { owner, organizationId, projectId, statusId } =
-      await createWorkspace(t);
-    const petr = await addFullMember(
-      t,
-      owner,
-      organizationId,
-      "Petr Svoboda",
-      "petr@example.com",
-    );
-    const { taskId } = await owner.as.mutation(api.tasks.create, {
-      projectId,
-      statusId,
-      title: "Opravit fakturaci",
-    });
-    await petr.as.mutation(api.taskSeen.markSeen, { taskId });
+    vi.useFakeTimers();
+    try {
+      const t = setup();
+      const { owner, organizationId, projectId, statusId } =
+        await createWorkspace(t);
+      const petr = await addFullMember(
+        t,
+        owner,
+        organizationId,
+        "Petr Svoboda",
+        "petr@example.com",
+      );
+      const { taskId } = await owner.as.mutation(api.tasks.create, {
+        projectId,
+        statusId,
+        title: "Opravit fakturaci",
+      });
+      await petr.as.mutation(api.taskSeen.markSeen, { taskId });
 
-    await owner.as.mutation(api.taskSeen.markSeen, { taskId });
-    await petr.as.mutation(api.comments.create, {
-      taskId,
-      body: serializeCommentBody([{ type: "text", text: "Mrknu na to." }]),
-    });
+      await owner.as.mutation(api.taskSeen.markSeen, { taskId });
+      // Unread means strictly newer than `lastSeenAt`. Move the fake clock so
+      // the test never depends on whether two transactions share a millisecond.
+      vi.setSystemTime(Date.now() + 1);
+      await petr.as.mutation(api.comments.create, {
+        taskId,
+        body: serializeCommentBody([{ type: "text", text: "Mrknu na to." }]),
+      });
 
-    // The writer sees nothing; the other person sees one unread comment.
-    expect(await petr.as.query(api.taskSeen.unreadByProject, { projectId }))
-      .toEqual([]);
-    expect(await owner.as.query(api.taskSeen.unreadByProject, { projectId }))
-      .toEqual([{ taskId, unreadComments: 1, isNew: false }]);
+      // The writer sees nothing; the other person sees one unread comment.
+      expect(await petr.as.query(api.taskSeen.unreadByProject, { projectId }))
+        .toEqual([]);
+      expect(await owner.as.query(api.taskSeen.unreadByProject, { projectId }))
+        .toEqual([{ taskId, unreadComments: 1, isNew: false }]);
 
-    // Opening the task clears it, and the next comment starts counting again.
-    await owner.as.mutation(api.taskSeen.markSeen, { taskId });
-    expect(await owner.as.query(api.taskSeen.unreadByProject, { projectId }))
-      .toEqual([]);
-    await comment(petr, taskId, "A ještě jedna věc.");
-    expect(await owner.as.query(api.taskSeen.unreadByProject, { projectId }))
-      .toEqual([{ taskId, unreadComments: 1, isNew: false }]);
+      // Opening the task clears it, and the next comment starts counting again.
+      await owner.as.mutation(api.taskSeen.markSeen, { taskId });
+      expect(await owner.as.query(api.taskSeen.unreadByProject, { projectId }))
+        .toEqual([]);
+      vi.setSystemTime(Date.now() + 1);
+      await comment(petr, taskId, "A ještě jedna věc.");
+      expect(await owner.as.query(api.taskSeen.unreadByProject, { projectId }))
+        .toEqual([{ taskId, unreadComments: 1, isNew: false }]);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   test("the rail counts tasks with something new, not individual events", async () => {

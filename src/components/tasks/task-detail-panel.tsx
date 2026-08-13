@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import Link from "next/link";
 import { useMutation, useQuery } from "convex/react";
 import { Trash2Icon, XIcon } from "lucide-react";
 import { toast } from "sonner";
@@ -38,6 +39,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { formatDate } from "@/lib/format";
 import type { SaveState } from "@/lib/save-state";
 import { userInitials } from "@/lib/user";
+import { cn } from "@/lib/utils";
 
 /** Radix `Select` has no empty value, so "nobody" needs a sentinel. */
 const UNASSIGNED = "none";
@@ -46,7 +48,7 @@ const UNASSIGNED = "none";
 const SAVED_NOTE_MS = 2000;
 
 /**
- * The task detail, as it is shown inside the drawer next to the board.
+ * The task detail, shared by the board drawer and the central workspace.
  *
  * Every control here writes on its own: the title debounces while you type and
  * flushes when you leave it, the two selects write on change, the body editor
@@ -57,9 +59,11 @@ const SAVED_NOTE_MS = 2000;
 export function TaskDetailPanel({
   taskId,
   onClose,
+  mode = "drawer",
 }: {
   taskId: string;
   onClose: () => void;
+  mode?: "drawer" | "workspace";
 }) {
   const task = useQuery(api.tasks.get, { taskId });
   const statuses = useQuery(
@@ -158,10 +162,20 @@ export function TaskDetailPanel({
     <div className="flex h-full flex-col">
       {/* The header is a toolbar and hugs the panel edge; the column below it
           is indented to Notion's gutter, so the two do not line up on purpose. */}
-      <header className="flex h-14 shrink-0 items-center gap-2 border-b px-4 sm:px-6">
-        <span className="truncate text-sm text-muted-foreground">
-          {task?.projectName}
-        </span>
+      <header
+        className={cn(
+          "flex h-14 shrink-0 items-center gap-2 border-b px-4 sm:px-6",
+          mode === "workspace" && "lg:px-8",
+        )}
+      >
+        {task ? (
+          <Link
+            href={`/projekt/${task.projectId}`}
+            className="truncate rounded-sm text-sm text-muted-foreground outline-none transition-colors hover:text-foreground focus-visible:ring-3 focus-visible:ring-ring/40"
+          >
+            {task.projectName}
+          </Link>
+        ) : null}
         <div className="-mr-2 ml-auto flex shrink-0 items-center gap-1">
           <TaskSaveIndicator state={saveState} />
           {task?.canRemove ? (
@@ -190,29 +204,40 @@ export function TaskDetailPanel({
       {/* `sm:px-14` is the gutter `.workeee-editor` borrows back: the editor's
           own padding then draws the text column, and the block handles land in
           the 3.5rem to its left instead of floating outside the panel. */}
-      <div className="flex-1 overflow-y-auto px-4 py-6 sm:px-14">
-        {task === undefined ? (
-          <div className="flex flex-col gap-4">
-            <Skeleton className="h-9 w-3/4" />
-            <Skeleton className="h-16 w-full" />
-            <Skeleton className="h-24 w-full" />
-          </div>
-        ) : task === null ? (
-          <EmptyState
-            title="Úkol není dostupný"
-            description="Buď byl smazaný, nebo k němu nemáte přístup."
-          >
-            <Button type="button" size="lg" variant="outline" onClick={onClose}>
-              Zavřít
-            </Button>
-          </EmptyState>
-        ) : (
-          <div className="flex flex-col gap-6">
-            <TaskTitleField
-              taskId={task._id}
-              title={task.title}
-              onSaveState={reportSave}
-            />
+      <div
+        className={cn(
+          "flex-1 overflow-y-auto px-4 py-6 sm:px-14",
+          mode === "workspace" && "lg:px-20 lg:py-10",
+        )}
+      >
+        <div className={cn(mode === "workspace" && "mx-auto w-full max-w-3xl")}>
+          {task === undefined ? (
+            <div className="flex flex-col gap-4">
+              <Skeleton className="h-9 w-3/4" />
+              <Skeleton className="h-16 w-full" />
+              <Skeleton className="h-24 w-full" />
+            </div>
+          ) : task === null ? (
+            <EmptyState
+              title="Úkol není dostupný"
+              description="Buď byl smazaný, nebo k němu nemáte přístup."
+            >
+              <Button
+                type="button"
+                size="lg"
+                variant="outline"
+                onClick={onClose}
+              >
+                Zavřít
+              </Button>
+            </EmptyState>
+          ) : (
+            <div className="flex flex-col gap-6">
+              <TaskTitleField
+                taskId={task._id}
+                title={task.title}
+                onSaveState={reportSave}
+              />
 
             <div className="flex flex-wrap gap-4">
               <div className="flex min-w-48 flex-1 flex-col gap-1.5">
@@ -290,8 +315,9 @@ export function TaskDetailPanel({
             <Separator />
 
             <TaskComments taskId={task._id} members={members ?? []} />
-          </div>
-        )}
+            </div>
+          )}
+        </div>
       </div>
 
       {task ? (

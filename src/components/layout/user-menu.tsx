@@ -6,10 +6,9 @@ import { useRouter } from "next/navigation";
 import {
   ChevronsUpDownIcon,
   LogOutIcon,
-  MoonIcon,
   SettingsIcon,
-  SunIcon,
 } from "lucide-react";
+import { ThemePicker } from "@/components/layout/theme-picker";
 import { toast } from "sonner";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
@@ -22,14 +21,12 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useCurrentUser } from "@/hooks/use-current-user";
-import { useTheme } from "@/hooks/use-theme";
 import { authClient } from "@/lib/auth-client";
 import { userInitials } from "@/lib/user";
 
 export function UserMenu() {
   const router = useRouter();
   const user = useCurrentUser();
-  const { theme, toggleTheme } = useTheme();
   const [signingOut, setSigningOut] = useState(false);
 
   const handleSignOut = async () => {
@@ -90,17 +87,7 @@ export function UserMenu() {
           </Link>
         </DropdownMenuItem>
         <DropdownMenuSeparator />
-        <DropdownMenuItem
-          onSelect={(event) => {
-            event.preventDefault();
-            toggleTheme();
-          }}
-        >
-          {/* The label names what the click does, not what is on now — a sun
-              icon next to "Tmavý režim" said two opposite things. */}
-          {theme === "dark" ? <SunIcon /> : <MoonIcon />}
-          {theme === "dark" ? "Světlý režim" : "Tmavý režim"}
-        </DropdownMenuItem>
+        <ThemePicker />
         <DropdownMenuSeparator />
         <DropdownMenuItem
           disabled={signingOut}

@@ -40,7 +40,7 @@ export function TaskDescriptionEditor({
   initialContent: string | null;
   onSaveState: (state: SaveState) => void;
 }) {
-  const { theme } = useTheme();
+  const { appearance } = useTheme();
   const save = useMutation(api.taskContent.save);
   const generateUploadUrl = useMutation(api.files.generateUploadUrl);
   const register = useMutation(api.files.register);
@@ -116,7 +116,7 @@ export function TaskDescriptionEditor({
 
   return (
     <section className="workeee-editor">
-      <BlockNoteView editor={editor} theme={theme} onChange={handleChange} />
+      <BlockNoteView editor={editor} theme={appearance} onChange={handleChange} />
     </section>
   );
 }

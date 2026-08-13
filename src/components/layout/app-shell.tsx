@@ -2,6 +2,8 @@
 
 import { useState, type ReactNode } from "react";
 import { MenuIcon } from "lucide-react";
+import dynamic from "next/dynamic";
+import { usePathname } from "next/navigation";
 import { SidebarContent } from "@/components/layout/sidebar-content";
 import { Wordmark } from "@/components/layout/wordmark";
 import { Button } from "@/components/ui/button";
@@ -13,12 +15,23 @@ import {
   SheetTrigger,
 } from "@/components/ui/sheet";
 
+const WorkspaceShell = dynamic(() =>
+  import("@/components/workspace/workspace-shell").then(
+    (module) => module.WorkspaceShell,
+  ),
+);
+
 /**
  * Desktop: fixed left rail. Mobile (< lg): the same rail in a drawer behind a
  * hamburger in the top bar.
  */
 export function AppShell({ children }: { children: ReactNode }) {
   const [mobileOpen, setMobileOpen] = useState(false);
+  const pathname = usePathname();
+
+  if (pathname === "/prace") {
+    return <WorkspaceShell>{children}</WorkspaceShell>;
+  }
 
   return (
     <div className="flex min-h-dvh flex-col lg:flex-row">

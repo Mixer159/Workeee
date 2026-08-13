@@ -239,6 +239,10 @@ export default defineSchema({
     updatedAt: v.number(),
   })
     .index("by_project", ["projectId"])
+    // The workspace merges one recent page per visible project. Keeping the
+    // activity timestamp in the index makes that read bounded even when a
+    // board has years of finished work behind it.
+    .index("by_project_updated_at", ["projectId", "updatedAt"])
     .index("by_status", ["statusId"])
     .index("by_project_assignee", ["projectId", "assigneeId"]),
 

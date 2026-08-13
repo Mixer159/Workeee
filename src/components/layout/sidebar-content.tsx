@@ -1,5 +1,7 @@
 "use client";
 
+import Link from "next/link";
+import { MessageSquareTextIcon } from "lucide-react";
 import { Wordmark } from "@/components/layout/wordmark";
 import { NotificationsLink } from "@/components/layout/notifications-link";
 import { OrganizationSwitcher } from "@/components/layout/organization-switcher";
@@ -30,6 +32,15 @@ export function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
       </div>
 
       <div className="flex flex-1 flex-col gap-1 overflow-y-auto p-3">
+        <Link
+          href="/prace"
+          prefetch={false}
+          onClick={onNavigate}
+          className="flex h-9 items-center gap-3 px-3 text-sm text-muted-foreground transition-colors outline-none hover:bg-sidebar-accent/60 hover:text-sidebar-foreground focus-visible:ring-3 focus-visible:ring-ring/40"
+        >
+          <MessageSquareTextIcon className="size-4" />
+          Pracovní režim
+        </Link>
         {/* Above the projects, not among them: what is new comes before where
             to go, and the row must never read as one more project. */}
         <NotificationsLink onNavigate={onNavigate} />

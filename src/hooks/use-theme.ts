@@ -1,26 +1,30 @@
 "use client";
 
 import { useCallback, useSyncExternalStore } from "react";
-import { applyTheme, readTheme, type Theme } from "@/lib/theme";
+import {
+  applyTheme,
+  readTheme,
+  themeAppearance,
+  type Theme,
+} from "@/lib/theme";
 
 /**
- * Hand-rolled class-based dark mode. No next-themes.
+ * Hand-rolled palette store. No next-themes.
  *
- * The `dark` class on <html> is the single source of truth: it is set by the
- * pre-hydration script in the root layout and observed here, so any code that
- * flips the class stays in sync.
+ * `data-theme` on <html> is the single source of truth: the pre-hydration
+ * script sets it before paint and this hook observes it without an effect.
  */
 function subscribe(onStoreChange: () => void): () => void {
   const observer = new MutationObserver(onStoreChange);
   observer.observe(document.documentElement, {
     attributes: true,
-    attributeFilter: ["class"],
+    attributeFilter: ["data-theme"],
   });
   return () => observer.disconnect();
 }
 
 function getServerSnapshot(): Theme {
-  return "light";
+  return "sky";
 }
 
 export function useTheme() {
@@ -30,9 +34,5 @@ export function useTheme() {
     applyTheme(next);
   }, []);
 
-  const toggleTheme = useCallback(() => {
-    applyTheme(readTheme() === "dark" ? "light" : "dark");
-  }, []);
-
-  return { theme, setTheme, toggleTheme };
+  return { theme, appearance: themeAppearance(theme), setTheme };
 }

@@ -46,6 +46,7 @@ import type * as taskSeen from "../taskSeen.js";
 import type * as taskStatuses from "../taskStatuses.js";
 import type * as tasks from "../tasks.js";
 import type * as users from "../users.js";
+import type * as workspace from "../workspace.js";
 
 import type {
   ApiFromModules,
@@ -92,6 +93,7 @@ declare const fullApi: ApiFromModules<{
   taskStatuses: typeof taskStatuses;
   tasks: typeof tasks;
   users: typeof users;
+  workspace: typeof workspace;
 }>;
 
 /**

@@ -49,6 +49,25 @@ export const MAX_EVENTS_PER_DIGEST = 100;
 /** Longest quoted piece of a comment. A notification is a nudge, not the thread. */
 export const MAX_PREVIEW_LENGTH = 140;
 
+/**
+ * One compact, plain-text line from a stored comment body.
+ *
+ * Notifications and the workspace both show the same preview, so the segment
+ * parsing, mention rendering and truncation live here rather than drifting
+ * into two almost-identical helpers.
+ */
+export function commentBodyPreview(body: string): string {
+  const segments = parseCommentBody(body);
+  if (!segments) {
+    return "";
+  }
+  const text = commentBodyText(segments).replace(/\s+/g, " ").trim();
+  if (text.length <= MAX_PREVIEW_LENGTH) {
+    return text;
+  }
+  return `${text.slice(0, MAX_PREVIEW_LENGTH - 1).trimEnd()}…`;
+}
+
 // The category and rank rules live in `./notificationItems.ts` — the feed and
 // this queue collapse events the same way, and one of them has to own the rule.
 
@@ -477,15 +496,7 @@ export async function commentPreview(
   if (!comment) {
     return null;
   }
-  const segments = parseCommentBody(comment.body);
-  if (!segments) {
-    return "";
-  }
-  const text = commentBodyText(segments).replace(/\s+/g, " ").trim();
-  if (text.length <= MAX_PREVIEW_LENGTH) {
-    return text;
-  }
-  return `${text.slice(0, MAX_PREVIEW_LENGTH - 1).trimEnd()}…`;
+  return commentBodyPreview(comment.body);
 }
 
 /**
