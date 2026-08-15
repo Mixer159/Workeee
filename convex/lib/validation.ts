@@ -78,6 +78,34 @@ export function normalizeEmoji(value: string): string {
   return emoji;
 }
 
+/** Long enough for flags, skin tones, keycaps and joined family/profession emoji. */
+export const MAX_REACTION_EMOJI_LENGTH = 32;
+
+const reactionEmojiSegmenter = new Intl.Segmenter("und", {
+  granularity: "grapheme",
+});
+const REACTION_EMOJI_PATTERN =
+  /\p{Extended_Pictographic}|\p{Regional_Indicator}|^[#*0-9]\uFE0F?\u20E3$/u;
+
+/**
+ * A reaction is exactly one visible emoji grapheme, not a word or a string of
+ * several emoji. Grapheme segmentation admits the full Unicode shapes people
+ * expect here: ZWJ sequences, skin tones, flags and keycaps.
+ */
+export function normalizeReactionEmoji(value: string): string {
+  const emoji = value.trim();
+  const graphemes = [...reactionEmojiSegmenter.segment(emoji)];
+  if (
+    emoji.length === 0 ||
+    emoji.length > MAX_REACTION_EMOJI_LENGTH ||
+    graphemes.length !== 1 ||
+    !REACTION_EMOJI_PATTERN.test(emoji)
+  ) {
+    throw new Error("Reakce musí být jedno emoji.");
+  }
+  return emoji;
+}
+
 /** Trim and bound a task title. Mutations only. */
 export function normalizeTitle(value: string): string {
   const title = value.trim().replace(/\s+/g, " ");

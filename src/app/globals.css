@@ -22,48 +22,49 @@
 
 /* `.dark` remains the semantic appearance flag consumed by Tailwind and
  * third-party controls. Named palettes live on `data-theme`; every dark
- * palette adds this class before first paint. The marketing surface carries
- * `.dark` locally and intentionally keeps the original graphite palette. */
+ * palette adds this class before first paint. */
 @custom-variant dark (&:is(.dark *, .dark));
 
-/* The public site stays on the established graphite + lime composition. It
- * carries `.dark` locally, so these values override whichever app palette is
- * stored on `<html>` without becoming a second token vocabulary. */
+/* The public site is always light, and it is the product's own light default:
+ * the Obloha palette spelled out again on the marketing root. These values
+ * override whichever app palette is stored on `<html>`, so a visitor with a
+ * dark app theme still gets the light page — and it is not a second token
+ * vocabulary, it is the same one. */
 .workeee-marketing {
-  --background: 220 14% 5%;
-  --foreground: 210 17% 96%;
-  --card: 220 13% 8%;
-  --card-foreground: 210 17% 96%;
-  --popover: 220 13% 11%;
-  --popover-foreground: 210 17% 96%;
-  --primary: 74 86% 62%;
-  --primary-foreground: 74 60% 7%;
-  --secondary: 220 12% 14%;
-  --secondary-foreground: 210 17% 96%;
-  --muted: 220 12% 14%;
-  --muted-foreground: 216 11% 63%;
-  --accent: 220 12% 16%;
-  --accent-foreground: 210 17% 96%;
-  --destructive: 4 80% 63%;
-  --destructive-foreground: 220 30% 6%;
-  --border: 220 11% 17%;
-  --input: 220 11% 24%;
-  --ring: 74 86% 62%;
-  --sidebar: 220 14% 6%;
-  --sidebar-foreground: 210 17% 96%;
-  --sidebar-primary: 74 86% 62%;
-  --sidebar-primary-foreground: 74 60% 7%;
-  --sidebar-accent: 220 12% 13%;
-  --sidebar-accent-foreground: 210 17% 96%;
-  --sidebar-border: 220 11% 15%;
-  --sidebar-ring: 74 86% 62%;
-  --chart-1: 74 86% 62%;
-  --chart-2: 216 11% 63%;
-  --chart-3: 216 10% 45%;
-  --chart-4: 210 17% 86%;
-  --chart-5: 216 10% 32%;
-  --overlay: 220 40% 2%;
-  --shadow: 220 40% 2%;
+  --background: 216 45% 97%;
+  --foreground: 222 32% 13%;
+  --card: 216 55% 99%;
+  --card-foreground: 222 32% 13%;
+  --popover: 216 55% 99%;
+  --popover-foreground: 222 32% 13%;
+  --primary: 224 76% 43%;
+  --primary-foreground: 0 0% 100%;
+  --secondary: 218 39% 93%;
+  --secondary-foreground: 222 32% 13%;
+  --muted: 218 39% 93%;
+  --muted-foreground: 219 15% 39%;
+  --accent: 218 46% 90%;
+  --accent-foreground: 222 32% 13%;
+  --destructive: 0 72% 42%;
+  --destructive-foreground: 0 0% 100%;
+  --border: 218 31% 86%;
+  --input: 218 26% 77%;
+  --ring: 224 76% 43%;
+  --sidebar: 218 48% 94%;
+  --sidebar-foreground: 222 32% 13%;
+  --sidebar-primary: 224 76% 43%;
+  --sidebar-primary-foreground: 0 0% 100%;
+  --sidebar-accent: 218 44% 88%;
+  --sidebar-accent-foreground: 222 32% 13%;
+  --sidebar-border: 218 31% 84%;
+  --sidebar-ring: 224 76% 43%;
+  --chart-1: 224 76% 43%;
+  --chart-2: 196 72% 42%;
+  --chart-3: 268 58% 49%;
+  --chart-4: 154 50% 38%;
+  --chart-5: 12 68% 45%;
+  --overlay: 222 45% 9%;
+  --shadow: 222 45% 12%;
 }
 
 /*
@@ -529,29 +530,31 @@
  * The public page.
  *
  * `html:has()` rather than a class on `<html>`: a nested layout cannot touch
- * the document element, and without this the app's own background shows through
- * an overscroll bounce and behind a page shorter than the viewport — in the
- * light theme that is a white flash under a near-black page. `color-scheme`
- * hands the scrollbar and the focus ring to the dark side for the same reason.
+ * the document element, and without this the app's stored palette shows through
+ * an overscroll bounce and behind a page shorter than the viewport — for a
+ * visitor with a dark app theme that is a dark flash under a light page.
+ * `color-scheme` hands the scrollbar and the focus ring to the light side for
+ * the same reason.
  *
- * The literal value is the `.dark` background above. It has to be literal:
- * `html` is outside the element that carries the theme class, so it cannot read
+ * The literal value is the Obloha background above. It has to be literal:
+ * `html` is outside the element that carries the override, so it cannot read
  * the token. The two move together.
  */
 html:has(.workeee-marketing),
 html:has(.workeee-marketing) body {
-  background-color: hsl(220 14% 5%);
+  background-color: hsl(216 45% 97%);
 }
 
 .workeee-marketing {
-  color-scheme: dark;
+  color-scheme: light;
 }
 
 /*
- * The display word. Switzer at 800 with the tracking pulled in hard: at 18vw
- * the default spacing reads as gaps between letters rather than as one word,
- * and `WORKEEE` is three identical letters in a row, which needs the word to
- * hold together to stay readable.
+ * The display word. Switzer at 800 with the tracking pulled in hard: at the
+ * sizes the footer bookend and the auth screen use it, the default spacing
+ * reads as gaps between letters rather than as one word, and `WORKEEE` is
+ * three identical letters in a row, which needs the word to hold together to
+ * stay readable.
  */
 .workeee-display {
   font-weight: 800;
@@ -572,17 +575,6 @@ html:has(.workeee-marketing) body {
     }
   }
 
-  @keyframes workeee-settle {
-    from {
-      opacity: 0;
-      transform: translate3d(-56px, 26px, 0) scale(0.965);
-    }
-    to {
-      opacity: 1;
-      transform: translate3d(0, 0, 0) scale(1);
-    }
-  }
-
   @keyframes workeee-sweep {
     from {
       transform: scaleX(0);
@@ -594,11 +586,6 @@ html:has(.workeee-marketing) body {
 
   .workeee-marketing [data-rise] {
     animation: workeee-rise 900ms cubic-bezier(0.16, 1, 0.3, 1) both;
-    animation-delay: var(--delay, 0ms);
-  }
-
-  .workeee-marketing [data-settle] {
-    animation: workeee-settle 1100ms cubic-bezier(0.16, 1, 0.3, 1) both;
     animation-delay: var(--delay, 0ms);
   }
 
@@ -635,18 +622,6 @@ html:has(.workeee-marketing) body {
       animation-timeline: scroll(self inline);
     }
   }
-}
-
-/*
- * A screenshot that runs past the edge of its frame fades instead of being
- * guillotined, so the crop reads as "the board continues" and not as a bug.
- */
-.workeee-fade-r {
-  mask-image: linear-gradient(to right, #000 calc(100% - 5rem), transparent);
-}
-
-.workeee-fade-b {
-  mask-image: linear-gradient(to bottom, #000 calc(100% - 6rem), transparent);
 }
 
 /*
@@ -701,29 +676,6 @@ html:has(.workeee-marketing) body {
 
     .workeee-marketing [data-enter-stagger] > *:nth-child(n + 4) {
       animation-range: entry 14% cover 42%;
-    }
-  }
-}
-
-/*
- * The one parallax on the page, and the one place the skill asks for it: the
- * two layers of the hero interleave separate slightly as the page scrolls, so
- * the screenshot reads as sitting in front of the word rather than pasted onto
- * it. The delta is small on purpose; a big one turns a composition into a toy.
- */
-@supports (animation-timeline: scroll()) {
-  @media (prefers-reduced-motion: no-preference) {
-    @keyframes workeee-drift {
-      to {
-        transform: translate3d(0, var(--drift, -3rem), 0);
-      }
-    }
-
-    .workeee-marketing [data-drift] {
-      animation: workeee-drift linear both;
-      animation-timeline: scroll();
-      animation-range: 0 70vh;
-      will-change: transform;
     }
   }
 }

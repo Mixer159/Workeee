@@ -312,6 +312,23 @@ export default defineSchema({
     edited: v.optional(v.boolean()),
   }).index("by_task", ["taskId"]),
 
+  /**
+   * Emoji reactions attached to comments. One row represents one emoji on one
+   * comment; `userIds` is both the membership set and the displayed count, so
+   * fifty identical reactions never become fifty separate controls in the UI.
+   */
+  commentReactions: defineTable({
+    taskId: v.id("tasks"),
+    commentId: v.id("comments"),
+    projectId: v.id("projects"),
+    organizationId: v.id("organizations"),
+    emoji: v.string(),
+    userIds: v.array(v.id("users")),
+  })
+    .index("by_task", ["taskId"])
+    .index("by_comment", ["commentId"])
+    .index("by_comment_emoji", ["commentId", "emoji"]),
+
   activityLogs: defineTable({
     organizationId: v.id("organizations"),
     actorId: v.id("users"),

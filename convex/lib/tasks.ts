@@ -1,6 +1,7 @@
 import type { Doc, Id } from "../_generated/dataModel";
 import type { MutationCtx, QueryCtx } from "../_generated/server";
 import { getProjectAccess, requireProjectAccess, type ProjectAccess } from "./access";
+import { listTaskReactions } from "./commentReactions";
 import { deleteFile, listTaskFiles } from "./files";
 import { deleteTaskNotificationItems } from "./notificationItems";
 import { deleteTaskNotifications } from "./notifications";
@@ -76,7 +77,7 @@ export async function deleteTaskChildren(
   ctx: MutationCtx,
   taskId: Id<"tasks">,
 ): Promise<number> {
-  const [content, files, comments] = await Promise.all([
+  const [content, files, comments, reactions] = await Promise.all([
     ctx.db
       .query("taskContent")
       .withIndex("by_task", (q) => q.eq("taskId", taskId))
@@ -86,16 +87,24 @@ export async function deleteTaskChildren(
       .query("comments")
       .withIndex("by_task", (q) => q.eq("taskId", taskId))
       .collect(),
+    listTaskReactions(ctx, taskId),
   ]);
   await Promise.all([
     ...content.map((row) => ctx.db.delete(row._id)),
     ...files.map((file) => deleteFile(ctx, file)),
     ...comments.map((comment) => ctx.db.delete(comment._id)),
+    ...reactions.map((reaction) => ctx.db.delete(reaction._id)),
   ]);
   const notifications = await deleteTaskNotifications(ctx, taskId);
   const items = await deleteTaskNotificationItems(ctx, taskId);
   const seen = await deleteTaskSeenRows(ctx, taskId);
   return (
-    content.length + files.length + comments.length + notifications + items + seen
+    content.length +
+    files.length +
+    comments.length +
+    reactions.length +
+    notifications +
+    items +
+    seen
   );
 }

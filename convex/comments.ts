@@ -17,6 +17,10 @@ import {
   serializeCommentBody,
   type CommentSegment,
 } from "./lib/commentBody";
+import {
+  deleteCommentReactions,
+  listTaskReactions,
+} from "./lib/commentReactions";
 import { deleteFile, isImageMimeType } from "./lib/files";
 import { notifyComment } from "./lib/notifications";
 import { listProjectMemberIds } from "./lib/projectMembers";
@@ -56,7 +60,26 @@ export const listByTask = query({
       .take(MAX_COMMENTS);
     comments.sort((a, b) => a._creationTime - b._creationTime);
 
-    const authors = await loadAuthors(ctx, comments);
+    const [authors, reactions] = await Promise.all([
+      loadAuthors(ctx, comments),
+      listTaskReactions(ctx, args.taskId),
+    ]);
+    const reactionsByComment = new Map<
+      Id<"comments">,
+      { emoji: string; count: number; reactedByMe: boolean }[]
+    >();
+    for (const reaction of reactions) {
+      if (reaction.userIds.length === 0) {
+        continue;
+      }
+      const group = reactionsByComment.get(reaction.commentId) ?? [];
+      group.push({
+        emoji: reaction.emoji,
+        count: reaction.userIds.length,
+        reactedByMe: reaction.userIds.includes(userId),
+      });
+      reactionsByComment.set(reaction.commentId, group);
+    }
 
     return await Promise.all(
       comments.map(async (comment) => ({
@@ -68,6 +91,7 @@ export const listByTask = query({
         attachments: await resolveAttachments(ctx, comment.attachmentIds),
         edited: comment.edited === true,
         createdAt: comment._creationTime,
+        reactions: reactionsByComment.get(comment._id) ?? [],
         canEdit: comment.authorId === userId,
         canRemove: comment.authorId === userId || manager,
       })),
@@ -187,6 +211,7 @@ export const remove = mutation({
       .withIndex("by_comment", (q) => q.eq("commentId", comment._id))
       .collect();
     await Promise.all(attachments.map((file) => deleteFile(ctx, file)));
+    await deleteCommentReactions(ctx, comment._id);
     await ctx.db.delete(comment._id);
     await touchTask(ctx, task._id);
   },

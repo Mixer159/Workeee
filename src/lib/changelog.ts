@@ -22,6 +22,33 @@ export type ChangelogEntry = {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    date: "2026-08-14",
+    title: "Reakce přímo pod komentářem",
+    tags: ["Komentáře"],
+    items: [
+      "Na komentář lze odpovědět palcem, srdcem, smajlíkem nebo libovolným jiným emoji, aniž by vznikl nový komentář.",
+      "Stejné reakce od více lidí se sloučí pod původní zprávou a ukážou společný počet.",
+    ],
+  },
+  {
+    date: "2026-08-13",
+    title: "Úvodní stránka v novém kabátě",
+    tags: ["Web"],
+    items: [
+      "Veřejná stránka má nový layout a nové texty: dvousloupcový úvod, galerie skutečných snímků aplikace k přejetí do strany a číslovaný přehled funkcí.",
+      "Zůstává světlá a statická; snímky běžící aplikace jsou teď hlavní vizuál celé stránky.",
+    ],
+  },
+  {
+    date: "2026-08-13",
+    title: "Veřejná stránka dosvítila",
+    tags: ["Web"],
+    items: [
+      "Úvodní stránka je teď světlá a jednodušší: čistý nadpis, skutečné snímky aplikace a vlásenky mezi sekcemi místo tmavé složené scény.",
+      "Ukazuje i to nejnovější: pracovní režim, paletu příkazů, upozornění a šest barevných vzhledů.",
+    ],
+  },
+  {
     date: "2026-08-13",
     title: "Šest barevných vzhledů",
     tags: ["Vzhled"],

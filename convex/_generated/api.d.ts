@@ -9,6 +9,7 @@
  */
 
 import type * as auth from "../auth.js";
+import type * as commentReactions from "../commentReactions.js";
 import type * as comments from "../comments.js";
 import type * as crons from "../crons.js";
 import type * as fileReaper from "../fileReaper.js";
@@ -20,6 +21,7 @@ import type * as lib_activity from "../lib/activity.js";
 import type * as lib_auth from "../lib/auth.js";
 import type * as lib_brevo from "../lib/brevo.js";
 import type * as lib_commentBody from "../lib/commentBody.js";
+import type * as lib_commentReactions from "../lib/commentReactions.js";
 import type * as lib_files from "../lib/files.js";
 import type * as lib_invites from "../lib/invites.js";
 import type * as lib_notificationEmail from "../lib/notificationEmail.js";
@@ -56,6 +58,7 @@ import type {
 
 declare const fullApi: ApiFromModules<{
   auth: typeof auth;
+  commentReactions: typeof commentReactions;
   comments: typeof comments;
   crons: typeof crons;
   fileReaper: typeof fileReaper;
@@ -67,6 +70,7 @@ declare const fullApi: ApiFromModules<{
   "lib/auth": typeof lib_auth;
   "lib/brevo": typeof lib_brevo;
   "lib/commentBody": typeof lib_commentBody;
+  "lib/commentReactions": typeof lib_commentReactions;
   "lib/files": typeof lib_files;
   "lib/invites": typeof lib_invites;
   "lib/notificationEmail": typeof lib_notificationEmail;

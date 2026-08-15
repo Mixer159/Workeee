@@ -141,6 +141,7 @@ convex/
   taskContent.ts         # get / save — the BlockNote document of a task
   files.ts               # generateUploadUrl / register / listByTask / remove
   comments.ts            # listByTask / create / update / remove
+  commentReactions.ts    # toggle one emoji reaction on a comment
   notifications.ts       # settings / setTaskEmails / claim / flush
   notificationItems.ts   # the in-app feed: list / unreadCount / markAllRead
   taskSeen.ts            # markSeen / unreadByProject / unreadByOrganization
@@ -151,6 +152,7 @@ convex/
   organizationPurge.test.ts  # owner guard, name confirmation, the whole cascade
   tasks.test.ts          # security + ordering tests for the board
   taskDetail.test.ts     # security + logic tests for body, files, comments
+  commentReactions.test.ts # grouping, emoji validation, access, cascades
   fileReaper.test.ts     # both reaper branches, the grace period, the batch cap
   svg.test.ts            # the icon SVG gate: what it accepts, and the attacks
   notifications.test.ts  # who is queued, the window, the checks at send time
@@ -163,6 +165,7 @@ convex/
   lib/activity.ts        # logActivity (audit trail)
   lib/brevo.ts           # the only network call in the app
   lib/commentBody.ts     # the comment segment codec (shared with the client)
+  lib/commentReactions.ts # bounded reads and reaction deletion helpers
   lib/files.ts           # blob validation, caps, deletion
   lib/invites.ts         # expiry presets, code generation, status
   lib/notificationEmail.ts # buildTaskDigest — subject + HTML + text, pure
@@ -190,7 +193,7 @@ src/
                          # the two static Switzer cuts Satori reads
     opengraph-image.tsx  # the link preview every page inherits
     not-found.tsx        # 404, outside the shell, with its own frame
-    (marketing)/         # PUBLIC shell: pinned graphite tokens, header + footer
+    (marketing)/         # PUBLIC shell: pinned light tokens, header + footer
     (marketing)/o-aplikaci/page.tsx            # the landing page
     (marketing)/o-aplikaci/opengraph-image.tsx # its own preview, beside the page on purpose
     (marketing)/zmeny/   # the whole changelog, grouped by month
@@ -219,7 +222,7 @@ src/
                          # wordmark, page-header, empty-state
     marketing/           # the public page only: site-header, site-footer,
                          # app-link, repo-button, shot, hero, facts, product,
-                         # ledger, self-hosting, code-block, open-source,
+                         # self-hosting, code-block, open-source,
                          # changelog-section, changelog-entry
     notifications/       # notification-settings-form, notification-feed,
                          # unread-badge
@@ -233,7 +236,8 @@ src/
                          # task-drawer, task-detail-panel, task-title-field,
                          # task-save-indicator, task-description-editor,
                          # task-attachments, task-comments, comment-composer,
-                         # comment-item, comment-body, mention-textarea,
+                         # comment-item, comment-body, comment-reactions,
+                         # mention-textarea,
                          # file-type-icon, image-lightbox
     workspace/           # shell, provider, rail, command menu, task list, canvas
   hooks/                 # use-current-user, use-current-organization, use-theme,
@@ -246,8 +250,7 @@ src/
                          # upload, user, utils, workspace-rail
   proxy.ts               # `/` answers to the session cookie: app, or the
                          # public page rewritten in — see **Routes**
-public/marketing/        # the captures of the running app the page is built on,
-                         # plus the one generated texture plate
+public/marketing/        # the captures of the running app the page is built on
 LICENSE                  # MIT. The public page claims it, so it has to be here
 ```
 
@@ -380,6 +383,8 @@ files                taskId, projectId, organizationId, storageId, fileName,
                      by_storage
 comments             taskId, projectId, organizationId, authorId, body,
                      attachmentIds?, edited?                          by_task
+commentReactions     taskId, commentId, projectId, organizationId, emoji,
+                     userIds              by_task · by_comment · by_comment_emoji
 activityLogs         organizationId, actorId, type, targetId?, meta?    by_org
 notificationSettings userId, taskEmails      — a missing row means ON  by_user
 notificationEvents   userId, organizationId, projectId, taskId, kind, actorId,
@@ -694,9 +699,9 @@ organizations the caller belongs to and then every project they may open,
 including the `limited` membership rule. Every project contributes at most
 `limit + 1` tasks through
 `tasks.by_project_updated_at`; the bounded pages are merged and sorted by
-`updatedAt`, so a title, status, assignment, body edit, file or comment moves the
-task back up. The response adds its project, status, řešitel and latest comment
-preview and returns `hasMore` for the manual 40 → 80 → 100 page.
+`updatedAt`, so a title, status, assignment, body edit, file, comment or reaction
+moves the task back up. The response adds its project, status, řešitel and latest
+comment preview and returns `hasMore` for the manual 40 → 80 → 100 page.
 
 The standard `/` dashboard and its project rail remain the signed-in default.
 "Pracovní režim" in that rail opens the full-height two-pane shell. Its desktop
@@ -883,8 +888,8 @@ every call site keeps the usual try / catch / toast. Failures where the blob is
 storage id — still throw and leave the blob alone. `projects.setIcon` follows the
 same rule.
 
-`tasks.remove` cascades: the body row, every file (blob included) and every
-comment go with the task.
+`tasks.remove` cascades: the body row, every file (blob included), every comment
+and every reaction go with the task.
 
 ### Comments
 
@@ -906,10 +911,12 @@ frozen at the moment the comment was written. Caps: 5 000 plain-text characters,
 
 ```ts
 comments.listByTask ({ taskId })  → [{ _id, author, body, attachments, edited,
-                                       createdAt, canEdit, canRemove }]  // asc, take 200
+                                       createdAt, reactions, canEdit,
+                                       canRemove }]                     // asc, take 200
 comments.create ({ taskId, body, attachmentIds? }) → { commentId }       // project member
 comments.update ({ commentId, body })                                    // author only
 comments.remove ({ commentId })                                          // author or manager
+commentReactions.toggle ({ commentId, emoji }) → { active }              // project member
 ```
 
 Server-side rules: every mentioned id must be in `listProjectMemberIds` (the same
@@ -919,6 +926,18 @@ claimed. All three mutations bump `tasks.updatedAt`. A mention is **what pulls
 somebody into a thread**: `comments.create` queues a notification for everyone
 it names and for the task's řešitel, and for nobody else — see **Upozornění**.
 `update` and `remove` queue nothing, because a typo fix is not news.
+
+Reactions live directly under the comment they answer; they are never comments
+of their own. `commentReactions` stores one aggregate row per comment and emoji,
+with the reacting user ids inside it. That is why ten thumbs-up render as one
+`👍 10` control and the caller can toggle their own membership without a second
+counter that could drift. `by_task` loads every summary for the bounded
+200-comment stream in one read, while `by_comment_emoji` is the atomic toggle
+path. A comment may carry at most 20 distinct emoji types; the number of people
+behind one of them is not capped to a UI-sized number. The picker offers common
+reactions and a text field for any single Unicode emoji, including flags,
+keycaps, skin tones and joined sequences. Reactions send no notification, but
+they do bump `tasks.updatedAt` like the rest of the task conversation.
 
 The composer (`src/components/tasks/mention-textarea.tsx`) edits a plain string:
 a mention is written as `@Jméno Příjmení` and the draft carries the user id that
@@ -1209,23 +1228,25 @@ somebody. The header's one client component (`marketing/app-link.tsx`) is the
 door either way: "Přehled" for a validated session, "Přihlásit se" for a
 visitor, and nothing while Convex is still deciding which.
 
-- **It is pinned to the original graphite presentation.** User-selected themes
-  belong to the signed-in work surface; the public page and its existing product
-  captures must stay one composed scene. The marketing root therefore carries
-  `dark` and locally overrides the same semantic tokens (`--background`,
-  `--primary`, …) with graphite + lime. It is not a second token vocabulary.
+- **It is pinned to the light presentation.** User-selected themes belong to
+  the signed-in work surface; the public page and its product captures stay
+  one composed scene, so the marketing root locally overrides the same
+  semantic tokens (`--background`, `--primary`, …) with the Obloha palette,
+  the product's light default. It is not a second token vocabulary.
   `html:has(.workeee-marketing)` paints the document itself, because a nested
-  layout cannot touch `<html>` and without it an overscroll bounce shows the
-  stored app palette through.
+  layout cannot touch `<html>` and without it a visitor's stored dark app
+  theme shows through an overscroll bounce.
 - It has **one job and one button**: "Otevřít na GitHubu", which appears exactly
   twice, in the hero and at the end of the open-source section. The header
   carries none, because a third copy following the reader down the page would
-  make it three. The secondary action is one anchor, "Jak si to nasadit".
-- Sections, and no two share a layout family: hero interleave → **Co Workeee je**
-  (a hairline fact grid whose last two cells are screenshots) → **Úkol nikdy
-  neopustí nástěnku** (one large capture with a smaller one laid over its corner)
-  → the scattered **ledger** → **Hostujte si to sami** (steps on a vertical rail)
-  → **Open source** (a bare statement) → **Změny** (a date rail) → the footer
+  make it three. The secondary action is one anchor, "Nasazení krok za krokem".
+- Sections, and no two share a layout family: hero (a two-column statement with
+  the accent phrase in `--primary`, the board at full width and a three-claim
+  hairline strip) → **Co je uvnitř** (a numbered index of six features on
+  hairline rows) → **Podívejte se dovnitř** (the product as a horizontal
+  scroll-snap gallery of real captures, edge-faded while there is more) →
+  **Nasadíte si to sami** (steps on a vertical rail) → **Zdrojový kód máte
+  celý** (a bare statement) → **Poslední změny** (a date rail) → the footer
   bookend.
 - **Zero eyebrows.** Not one small uppercase label above a heading anywhere on
   the page. The heading is the label, and the section's place on the page is the
@@ -1234,94 +1255,45 @@ visitor, and nothing while Convex is still deciding which.
   file paths, the repository address and changelog dates. Nothing else on either
   surface is set in it.
 
-### The interleave
+### The hero
 
-The hero is the one loud composition, and it is a real z-sandwich rather than
-one pre-composed picture:
-
-```
-z-40  a single task card, in front of everything
-z-30  the letters "EE", and the copy column
-z-20  the board, crossing the lower third of the letterforms
-z-10  the letters "WORKE"
-```
-
-The word is split into two adjacent spans with no space between them, which is
-the whole trick: `EE` at z-30 comes back out **in front** of the screenshot, so
-the board passes *through* the word instead of sitting on it. It is still one
-word to a screen reader and to anything that copies the text.
-
-- **Everything in the section is sized in `cqi`**, and the wrapper is a container
-  for that reason alone: the word (`22cqi`), the overlap (`-mt-[6cqi]`) and the
-  card's `top`. One `cqi` is one percent of the content column, which is the
-  thing the composition actually has to fill — a `vw` is not, and a
-  `clamp(…, 17.4vw, 15rem)` is wrong twice: it measured against the viewport
-  below the cap, and above the cap (from ~1400 px, so most desktops) it stopped
-  growing while the column did not, leaving the word a fist short of the right
-  edge.
-- **Legibility floor:** the board's top edge leaves about two thirds of every
-  letterform showing. That number is the composition — at four fifths the board
-  grazed the baseline and read as a picture parked under a headline, which is
-  the failure this section exists to avoid. Nothing here is fixed with a text
-  shadow or a glow.
-- **The board is cropped to 2.16:1** rather than shown at the file's own 1.69:1.
-  The capture is a whole 1440 × 900 viewport and its bottom quarter is empty
-  board, so at its own aspect a fifth of the section's height was spent on
-  nothing, which is what made the hero read as thin.
-- **The card in flight is centred on the board's top-left corner**, which is the
-  mark's fourth shape at page scale. Out on its own over the `W`, as it first
-  was, it read as a stray tooltip, and it crossed the letterforms at their waist
-  — the one height that costs legibility. Here it pokes barely above the line
-  the board already occludes.
-- **Below `md` the sandwich is dropped entirely** and the section becomes a plain
-  stack: word, sentence, buttons, board. The card fragment is `hidden md:block`.
-  On a phone there is no room for a composition and floating fragments read as a
-  bug — and the board becomes `SHOTS.boardMobile`, because the desktop capture at
-  342 px is a seventh of the scale it was taken at and four columns of
-  unreadable grey are a worse advert than no picture. Both captures are
-  `priority`, and each declares a `1px` display width on the side of `md` it is
-  hidden on, so neither is preloaded where it is never painted.
+A two-column statement, bottom-aligned: the one sentence on the left, the copy
+and the page's one button on the right. The deciding phrase — that the product
+runs on the visitor's own infrastructure — is the only text on the page set in
+the accent color. Underneath, the board at the column's full width, framed by
+one hairline like every other capture on the page, and a strip of three claims
+on hairline cells closes the section; each claim is something the hero itself
+did not already say. Below `md` the board becomes `SHOTS.boardMobile`, because
+the desktop capture at 390 px is a seventh of the scale it was taken at and
+four columns of unreadable text are a worse advert than no picture. Both
+captures are `priority`, and each declares a `1px` display width on the side of
+`md` it is hidden on, so neither is preloaded where it is never painted.
 
 ### The imagery
 
 Every picture of the product on this page is **a capture of the running app**,
-listed in `src/lib/shots.ts` with its real pixel dimensions so no component ever
-guesses an aspect ratio and re-shooting means editing one file. Desktop shots
-are taken at 1440 × 900 with a 2× pixel ratio, the phone one at 390 wide, all in
-the dark theme, cropped tight with no browser chrome and no invented address
-bar. `Shot` frames them the way the app frames its own panels: one hairline, a
-12 px corner, no drop shadow pretending the picture floats above the page it was
-taken from. The hero board is the one exception and it is not a contradiction:
-there the picture really is a layer with type behind it and a card in front of
-it, so the shadow states a relationship that exists rather than inventing one.
-
-The only non-product image is `public/marketing/texture.jpg`: one generated
-plate of cold raking light and dust over graphite, used once, behind the hero,
-at 22% and `mix-blend-screen`. It is there so the near-black reads as a surface
-rather than an absence. One photographic world, one texture world, nothing else.
-
-Under the hero it is one of **four plates of light**, and they are the only depth
-in that section that is not a real layer: the texture, one cold sheen behind the
-word, one lime bloom sitting exactly where the board cuts into the letterforms,
-and a floor that darkens the section's bottom edge so the composition stands on
-something. All four are `pointer-events-none`, none of them animates, and each
-is kept low enough (7–14%) to read as a lit surface rather than as a gradient.
+listed in `src/lib/shots.ts` with its real pixel dimensions so no component
+ever guesses an aspect ratio and re-shooting means editing one file. Desktop
+shots are taken at 1440 × 900 with a 2× pixel ratio, the phone one at 390
+wide, all in the light Obloha theme the page presents, cropped tight with no
+browser chrome and no invented address bar. `Shot` frames them the way the app
+frames its own panels: one hairline, a 12 px corner, no drop shadow pretending
+the picture floats above the page it was taken from. There are no textures and
+no plates of light; the captures are the only imagery, and the hairlines
+between sections are the only ornament.
 
 ### The motion
 
-`MOTION_INTENSITY` is high and there is no animation library on this page. All
+`MOTION_INTENSITY` is low and there is no animation library on this page. All
 of it is CSS, which is what keeps the whole page a server component: nothing
 listens to scroll, nothing measures, and the interpolation happens on the
 compositor.
 
-- **Load-in** is a timed sequence (`data-rise` / `data-settle` / `data-sweep`):
-  the word rises, the board settles up into it, the copy follows, then the card
-  in flight, and the accent rule above the copy draws itself in last.
+- **Load-in** is a short timed sequence (`data-rise` / `data-sweep`): the
+  hero's accent rule, headline, copy and capture arrive in reading order.
 - **Scroll reveals** use `animation-timeline: view()` (`data-enter`,
   `data-enter-stagger`). The stagger is a shift of `animation-range`, not a
   delay, so it stays tied to the scrollbar rather than to a clock.
-- **One parallax**, and it is the one place the composition earns it: the board
-  drifts against the word (`data-drift`, `animation-timeline: scroll()`).
 - Every rule is wrapped in **both** `@supports (animation-timeline: …)` and
   `prefers-reduced-motion: no-preference`, and the `@supports` is load-bearing:
   an `animation` with `both` and no timeline support falls back to the
@@ -1408,14 +1380,16 @@ its deliberately pinned presentation.
   `layout/page-header.tsx`, which exists so four screens cannot disagree about
   it), and everything else is 15 px or smaller. That contrast is the hierarchy;
   nothing in between competes. On the public page the same idea is stretched
-  further: one display word at up to 16 vw and then nothing above 3 rem.
+  further: one headline at up to 4.5 rem and then nothing above 3 rem.
 - Themes are **hand-rolled and class-compatible**: the pre-hydration script in
   `layout.tsx` reads `localStorage["workeee-theme"]`, writes `data-theme` before
   first paint, and adds `.dark` for the three dark palettes. `useTheme()`
   observes `data-theme` through `useSyncExternalStore`; BlockNote and Sonner get
   the derived light/dark appearance. Old stored values `light` / `dark` migrate
   to Obloha / Soumrak. **No `next-themes`.** The Tailwind variant still matches
-  `.dark` itself so the marketing root can force its own appearance.
+  `.dark` itself; the public page does not use it, because the marketing root
+  overrides the tokens directly and a stored dark palette on `<html>` never
+  reaches it.
 - Breakpoint contract: `lg:` (1024 px) splits the desktop sidebar from the
   mobile drawer. One custom breakpoint exists, **`board:` (1408 px)**, declared
   in `globals.css` — it is not about the shell but about the board; see
@@ -1480,8 +1454,10 @@ python3 -c "from PIL import Image; Image.open('f48.png').save('favicon.ico', siz
 
 ### The link previews
 
-`src/lib/og.tsx` draws every unfurl: 1200 × 630 of the dark theme's colors
-spelled out (Satori never sees `globals.css`), the mark and the wordmark at the
+`src/lib/og.tsx` draws every unfurl: 1200 × 630, the colors spelled out per
+scheme (Satori never sees `globals.css`) — graphite + lime for the app and the
+invite page, the light Obloha palette for the landing page it now matches. The
+mark and the wordmark sit at the
 top, an optional tag on the right, and at the bottom one short accent rule — the
 same rule the rail draws beside the project you have open — over one big line of
 Switzer Extrabold and an optional muted line under it. Three callers, and none
@@ -1574,6 +1550,7 @@ taskStatuses          per-project columns, customizable (order, name, color, kin
 tasks                 belong to one project, carry a status, position, assignee
 taskContent           Notion-like block document for the task body
 comments              on tasks, with @mentions and inline images
+commentReactions      grouped emoji reactions attached to comments
 files                 Convex storage, entity-scoped access
 activityLogs          audit trail
 ```
@@ -1726,10 +1703,37 @@ Day-one decisions:
   white or black, dark themes use lifted colored backgrounds, and the account
   menu previews every palette before applying it. The choice is local to the
   browser, applies before first paint, and old light/dark preferences migrate.
+- **Phase 19 (done).** The public page went light and quiet. The pinned
+  graphite presentation, the hero interleave and the scattered ledger gave way
+  to the Obloha palette, a plain headline over one full-width capture, and a
+  showcase that includes the newest surfaces: the work mode, the command
+  palette, the notification feed and the six themes. The ledger's claims moved
+  into the sections that already made them, and the scroll choreography kept
+  its contract: pure CSS, wrapped twice, static where unsupported.
+- **Phase 20 (done).** The public page, redesigned: a two-column hero whose
+  accent phrase is the only text in `--primary`, a three-claim hairline strip
+  under it, and the product shown as a horizontal scroll-snap gallery of real
+  captures — drawer, editor, work mode, comments — instead of stacked
+  text-plus-frame blocks. The fact grid became a numbered index, the
+  self-hosting aside lost its second copy of the phone capture, and the whole
+  page's copy was rewritten. Still zero eyebrows, still one button twice, still
+  a server component with CSS-only motion.
+- **Phase 21 (done).** Emoji reactions on comments: common reactions plus any
+  single emoji, always attached directly below the original message. The same
+  emoji from several people is one live counter, and clicking it again removes
+  only the current person's reaction.
 - **Later.** List view, due dates, filters in the URL, activity timeline,
   audit log surface.
 
 ## Continual learning
+
+- **Re-captured marketing shots need the dev image cache cleared.** `next/image`
+  caches optimized variants by URL + width + quality, not by file content, and in
+  dev that cache lives in `.next/dev/cache/images` (production: `.next/cache`,
+  rebuilt fresh each deploy). Replacing `public/marketing/*.png` under the same
+  name leaves a running dev server serving the old pixels with
+  `X-Nextjs-Cache: HIT` — the page then shows a capture that no longer exists on
+  disk. `rm -rf .next/dev/cache/images` fixes it.
 
 - **Tests around `lastSeenAt` must state their time ordering.** Unread comments
   are deliberately queried with `_creationTime > lastSeenAt`; two immediate
@@ -1762,7 +1766,7 @@ Day-one decisions:
 - **A second token vocabulary is a second design system.** The public page used
   to carry `--mk-*` names beside the app tokens, which made shared components and
   screenshots disagree. Named themes now override the same semantic token set;
-  even the public page's pinned graphite presentation speaks `--background`,
+  even the public page's pinned light presentation speaks `--background`,
   `--primary`, `--border`, and nothing else.
 - **A palette must recolor the neutrals, not only the button.** Swapping one
   accent on unchanged gray surfaces feels like a skin. Obloha, Šeřík, Písek,

@@ -1,7 +1,5 @@
 import { CodeBlock } from "@/components/marketing/code-block";
-import { Shot } from "@/components/marketing/shot";
 import { REPO_URL } from "@/lib/repo";
-import { SHOTS } from "@/lib/shots";
 
 /**
  * The whole sequence, with the real commands and the real variable names. If
@@ -54,28 +52,20 @@ export function SelfHosting() {
     <section id="nasazeni" className="border-b border-border">
       <div className="mx-auto max-w-[84rem] px-6 py-24 lg:px-10 lg:py-36">
         <div className="grid gap-16 lg:grid-cols-12 lg:gap-10">
-          <div className="min-w-0 lg:col-span-5">
+          <div className="min-w-0 lg:sticky lg:top-24 lg:col-span-5 lg:self-start">
             <h2
               data-enter
               className="font-heading text-[clamp(1.75rem,4.2vw,3rem)] leading-[1.05] font-bold tracking-[-0.035em]"
             >
-              Hostujte si to sami.
+              Nasadíte si to sami.
             </h2>
             <p
               data-enter
               className="mt-5 max-w-[32rem] text-[0.9375rem] leading-relaxed text-muted-foreground"
             >
-              Vlastní deployment Convexu, vlastní projekt na Vercelu, vlastní
-              data. Nikdo mezi tím není, ani my.
+              Vlastní Convex, vlastní Vercel, vlastní data. Čtyři kroky a
+              aplikace běží, bez jediného účtu navíc.
             </p>
-
-            <div data-enter className="mt-12 hidden max-w-[15rem] lg:block">
-              <Shot shot={SHOTS.boardMobile} sizes="15rem" />
-              <p className="mt-4 text-sm leading-relaxed text-muted-foreground">
-                Na telefonu se nástěnka posouvá do stran, panel úkolu je přes
-                celou šířku.
-              </p>
-            </div>
           </div>
 
           {/* `min-w-0` on both columns, and it is load-bearing rather than

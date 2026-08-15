@@ -16,5 +16,6 @@ export default function OpengraphImage() {
   return renderOgImage({
     title: "Projekty a úkoly pro tým, které si hostujete sami.",
     subtitle: "Open source. Vlastní Convex, vlastní Vercel, vlastní data.",
+    scheme: "light",
   });
 }

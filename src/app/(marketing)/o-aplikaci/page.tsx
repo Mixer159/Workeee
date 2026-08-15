@@ -2,13 +2,12 @@ import type { Metadata } from "next";
 import { ChangelogSection } from "@/components/marketing/changelog-section";
 import { Facts } from "@/components/marketing/facts";
 import { Hero } from "@/components/marketing/hero";
-import { Ledger } from "@/components/marketing/ledger";
 import { OpenSource } from "@/components/marketing/open-source";
 import { Product } from "@/components/marketing/product";
 import { SelfHosting } from "@/components/marketing/self-hosting";
 
 const DESCRIPTION =
-  "Projekty, nástěnka s vlastními stavy, úkoly s blokovým popisem, přílohy a komentáře. Open source, běží na vašem Convexu a vašem Vercelu.";
+  "Open source nástěnka pro týmové projekty a úkoly: vlastní stavy, blokový popis, přílohy, komentáře a upozornění. Běží na vašem Convexu a vašem Vercelu.";
 
 /**
  * `openGraph` here replaces the root layout's rather than merging into it, so
@@ -50,7 +49,6 @@ export default function LandingPage() {
       <Hero />
       <Facts />
       <Product />
-      <Ledger />
       <SelfHosting />
       <OpenSource />
       <ChangelogSection />

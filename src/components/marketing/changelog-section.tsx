@@ -18,7 +18,7 @@ export function ChangelogSection() {
           data-enter
           className="font-heading text-[clamp(1.75rem,4.2vw,3rem)] leading-[1.05] font-bold tracking-[-0.035em]"
         >
-          Změny
+          Poslední změny
         </h2>
 
         <div

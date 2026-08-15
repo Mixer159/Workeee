@@ -14,14 +14,15 @@ export function OpenSource() {
       <div className="mx-auto max-w-[84rem] px-6 py-24 lg:px-10 lg:py-36">
         <div data-enter className="max-w-[46rem]">
           <h2 className="font-heading text-[clamp(1.75rem,4.2vw,3rem)] leading-[1.05] font-bold tracking-[-0.035em]">
-            Celý zdrojový kód je venku.
+            Zdrojový kód máte celý.
           </h2>
           <p className="mt-6 text-[0.9375rem] leading-relaxed text-muted-foreground">
             Licence {LICENSE_NAME}, jeden repozitář, žádná uzavřená část.
-            Chybí vám něco, děláme něco divně, nebo jste našli chybu? Založte
-            issue nebo rovnou pull request. Kód je psaný tak, aby se v něm dalo
-            číst: každé rozhodnutí, které by jinak vypadalo náhodně, má
-            v repozitáři napsáno proč.
+            Next.js, Convex a Better Auth; nic dalšího si nikde nezakládáte.
+            Chybí vám něco, nebo jste našli chybu? Založte issue, nebo rovnou
+            pošlete pull request. Kód je psaný tak, aby se v něm dalo číst:
+            každé rozhodnutí, které by jinak vypadalo náhodně, má v repozitáři
+            napsáno proč.
           </p>
 
           <div className="mt-10 flex flex-wrap items-center gap-x-6 gap-y-3">

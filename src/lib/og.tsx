@@ -6,35 +6,52 @@ import { ImageResponse } from "next/og";
 /**
  * The canvas every link preview is drawn on — one layout, shared by the public
  * page, the app and the invite page, so an unfurl always looks like the same
- * product. Colors are the dark theme's tokens spelled out, because Satori never
- * sees `globals.css`.
+ * product. Colors are the theme tokens spelled out, because Satori never sees
+ * `globals.css`: graphite + lime for the app and the invite page, the light
+ * Obloha palette for the public page, which presents light now.
  */
 
 /** 1200 × 630 — what Slack, Teams, X, LinkedIn and Messenger all expect. */
 export const OG_SIZE = { width: 1200, height: 630 };
 export const OG_CONTENT_TYPE = "image/png";
 
-const BACKGROUND = "#0B0C0F";
-const FOREGROUND = "#F3F5F7";
-const MUTED = "#969FAB";
-const ACCENT = "#CBF14B";
+const SCHEMES = {
+  dark: {
+    background: "#0B0C0F",
+    foreground: "#F3F5F7",
+    muted: "#969FAB",
+    accent: "#CBF14B",
+    glow: "radial-gradient(900px 620px at 108% 118%, rgba(203,241,75,0.16), rgba(203,241,75,0) 62%)",
+  },
+  light: {
+    background: "#F4F7FB",
+    foreground: "#171D2C",
+    muted: "#555F72",
+    accent: "#1A47C1",
+    glow: "radial-gradient(900px 620px at 108% 118%, rgba(26,71,193,0.13), rgba(26,71,193,0) 62%)",
+  },
+} as const;
+
+type Scheme = keyof typeof SCHEMES;
 
 /**
  * The mark, spelled out again because Satori cannot import `src/app/icon.svg` —
  * it is not the DOM and there is no loader in front of it. Same four shapes as
  * the icon and as `components/brand/mark.tsx`; all three change together.
+ * Painted in the scheme's accent, which is the one brand color each side uses.
  */
-const MARK = [
-  '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 44" width="48" height="44">',
-  `<g fill="${ACCENT}">`,
-  '<rect x="0" y="0" width="12" height="44" rx="3"/>',
-  '<rect x="18" y="14" width="12" height="30" rx="3"/>',
-  '<rect x="36" y="28" width="12" height="16" rx="3"/>',
-  '<rect x="36" y="10" width="12" height="10" rx="3"/>',
-  "</g></svg>",
-].join("");
-
-const MARK_SRC = `data:image/svg+xml;base64,${Buffer.from(MARK).toString("base64")}`;
+function markSrc(accent: string) {
+  const svg = [
+    '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 44" width="48" height="44">',
+    `<g fill="${accent}">`,
+    '<rect x="0" y="0" width="12" height="44" rx="3"/>',
+    '<rect x="18" y="14" width="12" height="30" rx="3"/>',
+    '<rect x="36" y="28" width="12" height="16" rx="3"/>',
+    '<rect x="36" y="10" width="12" height="10" rx="3"/>',
+    "</g></svg>",
+  ].join("");
+  return `data:image/svg+xml;base64,${Buffer.from(svg).toString("base64")}`;
+}
 
 /**
  * Switzer, read off disk rather than fetched.
@@ -107,12 +124,15 @@ export async function renderOgImage({
   eyebrow,
   title,
   subtitle,
+  scheme = "dark",
 }: {
   eyebrow?: string;
   title: string;
   subtitle?: string;
+  scheme?: Scheme;
 }) {
   const fonts = await loadFonts();
+  const colors = SCHEMES[scheme];
 
   return new ImageResponse(
     (
@@ -124,13 +144,12 @@ export async function renderOgImage({
           flexDirection: "column",
           justifyContent: "space-between",
           padding: "68px 76px",
-          backgroundColor: BACKGROUND,
+          backgroundColor: colors.background,
           /* One cold corner of accent light. Painted on the canvas itself: an
              absolutely positioned circle gets clipped by Satori's layout box
              and shows its edges. */
-          backgroundImage:
-            "radial-gradient(900px 620px at 108% 118%, rgba(203,241,75,0.16), rgba(203,241,75,0) 62%)",
-          color: FOREGROUND,
+          backgroundImage: colors.glow,
+          color: colors.foreground,
           fontFamily: "Switzer",
         }}
       >
@@ -143,7 +162,7 @@ export async function renderOgImage({
         >
           <div style={{ display: "flex", alignItems: "center" }}>
             {/* eslint-disable-next-line @next/next/no-img-element -- Satori renders to a PNG; next/image has nothing to do here. */}
-            <img src={MARK_SRC} width={44} height={40} alt="" />
+            <img src={markSrc(colors.accent)} width={44} height={40} alt="" />
             <div
               style={{
                 marginLeft: 18,
@@ -163,8 +182,8 @@ export async function renderOgImage({
                 alignItems: "center",
                 padding: "10px 20px",
                 borderRadius: 6,
-                border: `1px solid ${ACCENT}55`,
-                color: ACCENT,
+                border: `1px solid ${colors.accent}55`,
+                color: colors.accent,
                 fontSize: 24,
               }}
             >
@@ -182,7 +201,7 @@ export async function renderOgImage({
               height: 4,
               borderRadius: 2,
               marginBottom: 34,
-              backgroundColor: ACCENT,
+              backgroundColor: colors.accent,
             }}
           />
           <Line
@@ -204,7 +223,7 @@ export async function renderOgImage({
                 marginTop: 26,
                 maxWidth: 840,
                 fontSize: 28,
-                color: MUTED,
+                color: colors.muted,
                 letterSpacing: -0.3,
               }}
             />

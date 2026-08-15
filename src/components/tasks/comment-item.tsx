@@ -8,6 +8,7 @@ import { toast } from "sonner";
 import { api } from "@convex/_generated/api";
 import { serializeCommentBody } from "@convex/lib/commentBody";
 import { CommentBody } from "@/components/tasks/comment-body";
+import { CommentReactions } from "@/components/tasks/comment-reactions";
 import { FileTypeIcon } from "@/components/tasks/file-type-icon";
 import type { LightboxImage } from "@/components/tasks/image-lightbox";
 import {
@@ -212,6 +213,11 @@ export function CommentItem({
             )}
           </div>
         ) : null}
+
+        <CommentReactions
+          commentId={comment._id}
+          reactions={comment.reactions}
+        />
       </div>
     </li>
   );
