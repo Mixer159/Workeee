@@ -22,6 +22,15 @@ export type ChangelogEntry = {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    date: "2026-08-18",
+    title: "Zapomenuté heslo",
+    tags: ["Přihlášení"],
+    items: [
+      "Na přihlašovací obrazovce je odkaz Zapomenuté heslo. Zadáte e-mail a přijde vám odkaz, kterým si nastavíte nové heslo; platí hodinu a jde použít jen jednou.",
+      "Po změně hesla se odhlásí každé zařízení, které bylo přihlášené tím starým.",
+    ],
+  },
+  {
     date: "2026-08-14",
     title: "Reakce přímo pod komentářem",
     tags: ["Komentáře"],

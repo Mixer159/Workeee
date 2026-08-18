@@ -98,10 +98,11 @@ Convex deployment env (`pnpm exec convex env list`):
 - `SITE_URL` — `http://localhost:3000` in dev. **Must equal the origin the app is
   served from**, otherwise Better Auth answers `403 INVALID_ORIGIN`. It is also
   the origin the links inside a notification e-mail are built from.
-- `BREVO_API_KEY` / `BREVO_SENDER_EMAIL` — transactional e-mail. **Optional:
-  without them the app behaves exactly as before and simply sends nothing** (see
-  **Upozornění**), which is what keeps the dev deployment and `vitest` quiet by
-  default. Nothing Brevo-related belongs on Vercel: the send happens inside a
+- `BREVO_API_KEY` / `BREVO_SENDER_EMAIL` — transactional e-mail: the digests
+  **and the password reset link**. **Optional: without them the app behaves
+  exactly as before and simply sends nothing** (see **Upozornění**), which is
+  what keeps `vitest` quiet by default — but it also means "Zapomenuté heslo"
+  quietly delivers nothing, so a real deployment wants them set. Nothing Brevo-related belongs on Vercel: the send happens inside a
   Convex action, so the browser never sees these.
 
 Production is separate from development:
@@ -157,6 +158,7 @@ convex/
   svg.test.ts            # the icon SVG gate: what it accepts, and the attacks
   notifications.test.ts  # who is queued, the window, the checks at send time
   notificationEmail.test.ts  # the subject, the plurals, the HTML escaping
+  passwordResetEmail.test.ts # the link in both bodies, the lifetime, escaping
   notificationItems.test.ts  # feed rows: who, collapsing, reading, the switch
   taskSeen.test.ts       # what counts as unseen, and that it dies with the task
   workspace.test.ts      # cross-org order + limited-member visibility
@@ -169,6 +171,7 @@ convex/
   lib/files.ts           # blob validation, caps, deletion
   lib/invites.ts         # expiry presets, code generation, status
   lib/notificationEmail.ts # buildTaskDigest — subject + HTML + text, pure
+  lib/passwordResetEmail.ts # buildPasswordResetEmail — the reset link mail, pure
   lib/notificationItems.ts # the in-app feed writer + the category/rank rules
   lib/notifications.ts   # the queue, the sliding window, claimDigest
   lib/ordering.ts        # fractional order helpers for board columns
@@ -199,6 +202,8 @@ src/
     (marketing)/zmeny/   # the whole changelog, grouped by month
     (auth)/prihlaseni    # sign in       (?invite=<code> carries a pending invite)
     (auth)/registrace    # sign up       (?invite=<code> likewise)
+    (auth)/obnova-hesla  # ask for a reset link
+    (auth)/nove-heslo    # set the new password (?token=<t> from the link)
     (dashboard)/         # AuthGuard + OrganizationProvider + AppShell
     (dashboard)/page.tsx # `/` — project overview for the current organization
     (dashboard)/prace/   # optional work mode: conversation rail + task detail
@@ -213,7 +218,8 @@ src/
   components/
     ui/                  # shadcn primitives, ours to edit
     brand/               # mark (the glyph, in currentColor, both surfaces)
-    auth/                # auth-guard, sign-in-form, sign-up-form
+    auth/                # auth-guard, sign-in-form, sign-up-form,
+                         # forgot-password-form, reset-password-form
     forms/               # name-form (shared rename control)
     invites/             # invites-panel (org- and project-scoped)
     join/                # join-screen
@@ -280,6 +286,23 @@ outside `src/`, so client code imports the generated API as
 - Auth state in the UI comes from `useConvexAuth()` / `<Authenticated>`, never
   from Better Auth's `useSession()` — Convex validates the token after Better
   Auth already reports a user.
+- **Password reset** is Better Auth's own flow, mailed through Brevo.
+  `/obnova-hesla` calls `authClient.requestPasswordReset({ email, redirectTo:
+  "/nove-heslo" })`; the server answers "sent" whether or not the address has
+  an account (its anti-enumeration rule, so the copy says "pokud"). The
+  `sendResetPassword` hook in `convex/auth.ts` builds the mail with
+  `buildPasswordResetEmail` (`convex/lib/passwordResetEmail.ts`, pure) and
+  sends it with `sendTransactionalEmail` — **without Brevo configured the
+  request succeeds and no mail leaves**, same as the digests. The link is
+  `${SITE_URL}/api/auth/reset-password/<token>?callbackURL=/nove-heslo`,
+  proxied into Convex like every auth route; the callback checks the token and
+  redirects to `/nove-heslo?token=…` or `?error=INVALID_TOKEN`. The page reads
+  both once on the server. `authClient.resetPassword({ newPassword, token })`
+  finishes it: single-use, valid for **60 minutes**
+  (`RESET_LINK_LIFETIME_MINUTES`, also the number the e-mail quotes), the same
+  12–256 length rule as sign-up, and `revokeSessionsOnPasswordReset` signs out
+  every device that knew the old password. Nobody is ever told a password: it
+  is hashed, and this is the only way back in.
 
 ### The app `users` table
 
@@ -1212,6 +1235,8 @@ pnpm exec convex run notifications:flush '{"userId": "..."}'
 | `/upozorneni` | authenticated | The in-app notification feed: new tasks, assignments, mentions and comments, unread first by nature. Reached from the rail's "Upozornění" link, which carries the unread count; a row links into the task's drawer, and opening it is what marks it read |
 | `/join/[code]` | **public** | Invite summary; unauthenticated visitors go to `/registrace?invite=<code>` or `/prihlaseni?invite=<code>` and come back here to accept |
 | `/prihlaseni`, `/registrace` | public | Auth; `?invite=<code>` redirects back to the join page afterwards |
+| `/obnova-hesla` | public | Ask for a password reset link by e-mail; the sign-in screen's "Zapomenuté heslo" leads here |
+| `/nove-heslo` | public | Where the e-mailed link lands (`?token=`); set the new password, or ask for a fresh link when the token is stale |
 
 ## The public page (Phase 14)
 

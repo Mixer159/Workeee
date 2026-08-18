@@ -28,6 +28,7 @@ import type * as lib_notificationEmail from "../lib/notificationEmail.js";
 import type * as lib_notificationItems from "../lib/notificationItems.js";
 import type * as lib_notifications from "../lib/notifications.js";
 import type * as lib_ordering from "../lib/ordering.js";
+import type * as lib_passwordResetEmail from "../lib/passwordResetEmail.js";
 import type * as lib_plural from "../lib/plural.js";
 import type * as lib_projectMembers from "../lib/projectMembers.js";
 import type * as lib_storage from "../lib/storage.js";
@@ -77,6 +78,7 @@ declare const fullApi: ApiFromModules<{
   "lib/notificationItems": typeof lib_notificationItems;
   "lib/notifications": typeof lib_notifications;
   "lib/ordering": typeof lib_ordering;
+  "lib/passwordResetEmail": typeof lib_passwordResetEmail;
   "lib/plural": typeof lib_plural;
   "lib/projectMembers": typeof lib_projectMembers;
   "lib/storage": typeof lib_storage;

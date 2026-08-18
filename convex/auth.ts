@@ -9,6 +9,11 @@ import { components, internal } from "./_generated/api";
 import type { DataModel } from "./_generated/dataModel";
 import authConfig from "./auth.config";
 import { getUserByAuthId } from "./lib/auth";
+import { sendTransactionalEmail } from "./lib/brevo";
+import {
+  buildPasswordResetEmail,
+  RESET_LINK_LIFETIME_MINUTES,
+} from "./lib/passwordResetEmail";
 import { normalizeUserName } from "./lib/validation";
 
 const siteUrl = process.env.SITE_URL!;
@@ -60,6 +65,15 @@ export const { onCreate, onUpdate, onDelete } = authComponent.triggersApi();
 /**
  * Better Auth instance. Self-registration is enabled: users sign themselves up
  * with e-mail + password. E-mail verification is intentionally off for v1.
+ *
+ * Password reset is the one e-mail Better Auth sends: `requestPasswordReset`
+ * mints a single-use token, and `sendResetPassword` mails the link through the
+ * same Brevo helper the digests use. The `url` Better Auth builds points at
+ * `${SITE_URL}/api/auth/reset-password/<token>`, which the Next.js proxy
+ * forwards here; the callback checks expiry and redirects to
+ * `/nove-heslo?token=…` (or `?error=INVALID_TOKEN`). The hook only ever runs
+ * inside the HTTP action, so `fetch` is available. Unconfigured Brevo means
+ * the request succeeds and nothing arrives — see **Upozornění** in CLAUDE.md.
  */
 export const createAuth = (ctx: GenericCtx<DataModel>) =>
   betterAuth({
@@ -70,6 +84,17 @@ export const createAuth = (ctx: GenericCtx<DataModel>) =>
       requireEmailVerification: false,
       minPasswordLength: 12,
       maxPasswordLength: 256,
+      resetPasswordTokenExpiresIn: RESET_LINK_LIFETIME_MINUTES * 60,
+      // Whoever had the old password loses every open session with it.
+      revokeSessionsOnPasswordReset: true,
+      sendResetPassword: async ({ user, url }) => {
+        await sendTransactionalEmail(
+          buildPasswordResetEmail({
+            to: { email: user.email, name: normalizeUserName(user.name) },
+            url,
+          }),
+        );
+      },
     },
     plugins: [convex({ authConfig })],
   });

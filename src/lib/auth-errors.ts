@@ -10,8 +10,9 @@ const MESSAGES: Record<string, string> = {
   USER_ALREADY_EXISTS_USE_ANOTHER_EMAIL:
     "Účet s tímto e-mailem už existuje. Použijte jiný e-mail.",
   USER_NOT_FOUND: "Účet s tímto e-mailem neexistuje.",
-  PASSWORD_TOO_SHORT: "Heslo musí mít alespoň 8 znaků.",
+  PASSWORD_TOO_SHORT: "Heslo musí mít alespoň 12 znaků.",
   PASSWORD_TOO_LONG: "Heslo je příliš dlouhé.",
+  INVALID_TOKEN: "Odkaz pro obnovu hesla je neplatný nebo už vypršel.",
   EMAIL_NOT_VERIFIED: "E-mail zatím není ověřený.",
   SESSION_EXPIRED: "Přihlášení vypršelo. Přihlaste se znovu.",
   FAILED_TO_CREATE_USER: "Účet se nepodařilo vytvořit. Zkuste to prosím znovu.",

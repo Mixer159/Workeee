@@ -66,7 +66,15 @@ export function SignInForm({ inviteCode }: { inviteCode?: string }) {
             />
           </div>
           <div className="flex flex-col gap-1.5">
-            <Label htmlFor="password">Heslo</Label>
+            <div className="flex items-baseline justify-between">
+              <Label htmlFor="password">Heslo</Label>
+              <Link
+                href="/obnova-hesla"
+                className="text-xs text-muted-foreground underline-offset-4 hover:text-foreground hover:underline"
+              >
+                Zapomenuté heslo
+              </Link>
+            </div>
             <Input
               id="password"
               type="password"
