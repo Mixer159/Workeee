@@ -7,6 +7,7 @@ import {
   type QueryCtx,
 } from "./_generated/server";
 import { getAuthUserId } from "./lib/auth";
+import { touchActive } from "./lib/presence";
 import {
   MAX_TASK_CONTENT_BYTES,
   parseTaskContent,
@@ -54,6 +55,7 @@ export const save = mutation({
       throw new Error("Nejste přihlášeni.");
     }
     const { task } = await requireTaskAccess(ctx, userId, args.taskId);
+    await touchActive(ctx, userId);
 
     if (args.content.length > MAX_TASK_CONTENT_BYTES) {
       throw new Error("Popis je příliš dlouhý.");

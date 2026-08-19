@@ -17,6 +17,7 @@ import {
   MAX_FILES_PER_CONTEXT,
   normalizeFileName,
 } from "./lib/files";
+import { touchActive } from "./lib/presence";
 import { getTaskAccess, requireTaskAccess, touchTask } from "./lib/tasks";
 import { fileContexts } from "./schema";
 
@@ -107,6 +108,7 @@ export const register = mutation({
       uploadedBy: userId,
     });
     await touchTask(ctx, task._id);
+    await touchActive(ctx, userId);
 
     return {
       ok: true as const,

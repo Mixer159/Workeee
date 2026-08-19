@@ -27,6 +27,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
+import { useNow } from "@/hooks/use-now";
 import {
   MEMBER_ACCESS_LABEL,
   ORGANIZATION_ROLE_LABEL,
@@ -34,6 +35,7 @@ import {
   type MemberAccess,
   type OrganizationRole,
 } from "@/lib/organization";
+import { describePresence } from "@/lib/presence";
 import { userInitials } from "@/lib/user";
 
 type PendingRemoval = { userId: Id<"users">; name: string };
@@ -51,6 +53,9 @@ export function MembersTable({
   const updateRole = useMutation(api.organizations.updateMemberRole);
   const removeMember = useMutation(api.organizations.removeMember);
   const [removing, setRemoving] = useState<PendingRemoval | null>(null);
+  // 0 is the server snapshot: there is no clock to read "Online" against, so
+  // the presence line is left out of the first paint rather than guessed at.
+  const now = useNow();
 
   const handleRoleChange = async (
     userId: Id<"users">,
@@ -106,6 +111,16 @@ export function MembersTable({
             viewerRole === "owner"
               ? ORGANIZATION_ROLE_OPTIONS
               : ORGANIZATION_ROLE_OPTIONS.filter((role) => role !== "owner");
+          const presence =
+            now === 0
+              ? null
+              : describePresence(
+                  {
+                    lastSeenAt: member.lastSeenAt,
+                    lastActiveAt: member.lastActiveAt,
+                  },
+                  now,
+                );
 
           return (
             <li
@@ -123,6 +138,21 @@ export function MembersTable({
                 <span className="truncate text-xs text-muted-foreground">
                   {member.email}
                 </span>
+                {presence ? (
+                  <span className="flex min-w-0 items-center gap-1.5 text-xs text-muted-foreground">
+                    {/* The one round thing allowed here, because it is a state
+                        and not a container: no dot means not online. */}
+                    {presence.online ? (
+                      <span
+                        className="size-2 shrink-0 rounded-full bg-emerald-500"
+                        aria-hidden="true"
+                      />
+                    ) : null}
+                    <span className="truncate">
+                      {presence.seen} · {presence.active}
+                    </span>
+                  </span>
+                ) : null}
               </div>
 
               <div className="flex flex-col items-end gap-1">
@@ -176,9 +206,12 @@ export function MembersTable({
                 >
                   <Trash2Icon />
                 </Button>
-              ) : (
+              ) : canManage ? (
+                // Only holds the column open for the rows that do have the
+                // button; on a read-only list nothing has one, so nothing
+                // needs reserving.
                 <span className="size-8" aria-hidden="true" />
-              )}
+              ) : null}
             </li>
           );
         })}

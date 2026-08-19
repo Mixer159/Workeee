@@ -146,6 +146,7 @@ convex/
   notifications.ts       # settings / setTaskEmails / claim / flush
   notificationItems.ts   # the in-app feed: list / unreadCount / markAllRead
   taskSeen.ts            # markSeen / unreadByProject / unreadByOrganization
+  presence.ts            # heartbeat — the last visit, written by the app shell
   crons.ts               # scheduled jobs — one entry per job
   fileReaper.ts          # internal: delete blobs nothing points at any more
   migrations.ts          # internal one-off backfills (`pnpm exec convex run`)
@@ -161,6 +162,7 @@ convex/
   passwordResetEmail.test.ts # the link in both bodies, the lifetime, escaping
   notificationItems.test.ts  # feed rows: who, collapsing, reading, the switch
   taskSeen.test.ts       # what counts as unseen, and that it dies with the task
+  presence.test.ts       # the heartbeat, the throttle, what counts as activity
   workspace.test.ts      # cross-org order + limited-member visibility
   lib/auth.ts            # getAuthUserId / getAuthUser / getUserByAuthId
   lib/access.ts          # the permission matrix — org + project access
@@ -176,6 +178,7 @@ convex/
   lib/notifications.ts   # the queue, the sliding window, claimDigest
   lib/ordering.ts        # fractional order helpers for board columns
   lib/plural.ts          # Czech 1 / 2–4 / 5+ (shared with the client)
+  lib/presence.ts        # touchSeen / touchActive / getPresence + the window
   lib/projectMembers.ts  # who can open a project (assignees + mentions)
   lib/storage.ts         # global one-blob/one-owner invariant + safe deletion
   lib/svg.ts             # the icon SVG allowlist + `data:` URI (never a blob)
@@ -213,6 +216,8 @@ src/
     (dashboard)/nastaveni/organizace    # organization settings, managers only
     (dashboard)/nastaveni/upozorneni    # personal notification switch, everybody
     (dashboard)/upozorneni              # the in-app notification feed
+    (dashboard)/tym                     # colleagues: who is online, last visit,
+                                        # last activity — everybody
     join/[code]/         # PUBLIC invite landing page + its own opengraph-image
     api/auth/[...all]/   # proxy into the Convex deployment
   components/
@@ -247,12 +252,13 @@ src/
                          # file-type-icon, image-lightbox
     workspace/           # shell, provider, rail, command menu, task list, canvas
   hooks/                 # use-current-user, use-current-organization, use-theme,
-                         # use-now, use-autosave-text, use-workspace-rail-width
+                         # use-now, use-autosave-text, use-workspace-rail-width,
+                         # use-presence-heartbeat
   lib/                   # auth-client, auth-redirect, auth-server, auth-errors,
                          # blocknote-cs, changelog, clipboard, comment-draft,
                          # current-organization, format, invites, og,
-                         # organization, project-emojis, project-icons, repo,
-                         # save-state, shots, task-status-colors, tasks, theme,
+                         # organization, presence, project-emojis, project-icons,
+                         # repo, save-state, shots, task-status-colors, tasks, theme,
                          # upload, user, utils, workspace-rail
   proxy.ts               # `/` answers to the session cookie: app, or the
                          # public page rewritten in — see **Routes**
@@ -420,6 +426,8 @@ notificationItems    userId, organizationId, projectId, taskId, kind, actorId,
 taskSeen             userId, taskId, projectId, organizationId, lastSeenAt
                      — a missing row means "never opened"
                      by_user_task · by_user_project · by_task
+userPresence         userId, lastSeenAt, lastActiveAt?   — one row per user,
+                     global; a missing row means "never seen"       by_user
 ```
 
 Shared validators live in `convex/schema.ts`: `organizationRoles`,
@@ -1219,6 +1227,47 @@ To skip the two-minute wait by hand:
 pnpm exec convex run notifications:flush '{"userId": "..."}'
 ```
 
+## Přítomnost (Phase 22)
+
+Two timestamps per person, shown to every colleague — on **`/tym`** (everybody)
+and in the members list of `/nastaveni/organizace` (managers): whether they
+are **online**, when they were **last in the app**, and when they **last did
+something**. One `userPresence` row per user, **global, not per
+organization** — a person is the same person in every team they belong to, and
+a colleague in any of them may see it. A missing row means "never seen since
+the feature shipped"; there is no backfill.
+
+| Field | Written by | Meaning |
+|---|---|---|
+| `lastSeenAt` | `presence.heartbeat` | the last visit — the app shell beats on mount, on every return to a visible tab and every `HEARTBEAT_MS` (60 s) while visible; a hidden tab sends nothing |
+| `lastActiveAt` | `touchActive` | the last write that counts as work: a task created, renamed, moved, assigned or deleted, a body saved, a file accepted, a status changed, a comment, a reaction, a project created, renamed, archived or restored. Being active also counts as being seen |
+
+`convex/lib/presence.ts` owns all of it:
+
+- **Both writes are throttled by `WRITE_GAP_MS` (45 s).** A row fresher than
+  that is left alone, so a 1 s autosave or a heartbeat storm is at most one
+  write a minute — and every subscriber of `organizations.members` re-runs only
+  that often. That throttle is what makes it affordable to put presence on a
+  query every settings screen holds open.
+- **"Online" is read on the client, never stored.** `isOnline(lastSeenAt, now)`
+  is `now − lastSeenAt < ONLINE_WINDOW_MS` (3 min, three heartbeats, so one
+  missed beat on a closed lid does not flicker the dot); `now` comes from
+  `useNow()`, because a query cannot tick. The server hands out the two
+  timestamps and nothing derived.
+- `touchActive` is called **after** authorization passes in a mutation — an
+  attempt that was refused is not activity — and it never throws. Reading is
+  not activity: `taskSeen.markSeen` and the heartbeat itself do not call it.
+- `Date.now()` is read on the server. Clocks disagree, and the client never
+  sends a timestamp.
+- The row dies with the user (`deletePresence` in the `onDelete` trigger). It is
+  not scoped to an organization, so the purge leaves it alone.
+
+The copy is verbless, like the digest: `Online`, `Naposledy online před 5 min`,
+`Aktivita před 2 hodinami`, `Zatím bez návštěvy`, `Bez aktivity`
+(`describePresence` in `src/lib/presence.ts`, pinned by `src/lib/presence.test.ts`).
+The green dot is the one round thing in the row, and it means exactly one
+thing: online now.
+
 ## Routes
 
 | Route | Access | What it is |
@@ -1232,6 +1281,7 @@ pnpm exec convex run notifications:flush '{"userId": "..."}'
 | `/projekt/[id]/ukol/[taskId]` | project members | Redirect to `/projekt/[id]?ukol=<taskId>` — the detail is a drawer now |
 | `/nastaveni/organizace` | org managers | Rename, members table, organization invites; the owner also gets the delete card |
 | `/nastaveni/upozorneni` | authenticated | One switch: e-mail digests of new tasks. Personal, so no manager guard — reached from the user menu ("Nastavení upozornění") |
+| `/tym` | authenticated | The colleagues of the current organization: every member with role, whether they are online right now, when they were last in the app and when they last did something. The same list managers see in the organization settings, without the controls. Reached from the rail's "Tým" link |
 | `/upozorneni` | authenticated | The in-app notification feed: new tasks, assignments, mentions and comments, unread first by nature. Reached from the rail's "Upozornění" link, which carries the unread count; a row links into the task's drawer, and opening it is what marks it read |
 | `/join/[code]` | **public** | Invite summary; unauthenticated visitors go to `/registrace?invite=<code>` or `/prihlaseni?invite=<code>` and come back here to accept |
 | `/prihlaseni`, `/registrace` | public | Auth; `?invite=<code>` redirects back to the join page afterwards |
@@ -1747,6 +1797,12 @@ Day-one decisions:
   single emoji, always attached directly below the original message. The same
   emoji from several people is one live counter, and clicking it again removes
   only the current person's reaction.
+- **Phase 22 (done).** Presence: who is online, when somebody was last in the
+  app and when they last did something, shown to their colleagues on the new
+  `/tym` page and in the members list of the organization settings. A heartbeat
+  from the app shell and a `touchActive` in the mutations that count as work,
+  both throttled server-side, on one `userPresence` row per user. See
+  **Přítomnost**.
 - **Later.** List view, due dates, filters in the URL, activity timeline,
   audit log surface.
 

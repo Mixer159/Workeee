@@ -17,6 +17,7 @@ import {
 import { logActivity } from "./lib/activity";
 import { getAuthUserId } from "./lib/auth";
 import { baseMimeType } from "./lib/files";
+import { touchActive } from "./lib/presence";
 import { listProjectMemberIds } from "./lib/projectMembers";
 import {
   deleteStorageIfUnreferenced,
@@ -48,6 +49,7 @@ export const create = mutation({
     if (!canCreateProject(access)) {
       throw new Error("Projekt může založit jen člen s přístupem k celé organizaci.");
     }
+    await touchActive(ctx, userId);
     const name = normalizeName(args.name, "projektu");
     const emoji = args.emoji ? normalizeEmoji(args.emoji) : undefined;
 
@@ -182,6 +184,7 @@ export const rename = mutation({
       throw new Error("Nejste přihlášeni.");
     }
     const { project } = await requireProjectManager(ctx, userId, args.projectId);
+    await touchActive(ctx, userId);
     const name = normalizeName(args.name, "projektu");
 
     await ctx.db.patch(args.projectId, { name });
@@ -203,6 +206,7 @@ export const setArchived = mutation({
       throw new Error("Nejste přihlášeni.");
     }
     const { project } = await requireProjectManager(ctx, userId, args.projectId);
+    await touchActive(ctx, userId);
 
     await ctx.db.patch(args.projectId, { archived: args.archived });
     await logActivity(ctx, {

@@ -11,6 +11,7 @@ import {
   requireOrgManager,
 } from "./lib/access";
 import { getAuthUserId } from "./lib/auth";
+import { getPresence } from "./lib/presence";
 import { isSameName, normalizeName } from "./lib/validation";
 import { organizationRoles } from "./schema";
 
@@ -219,6 +220,10 @@ export const members = query({
         if (!user) {
           return null;
         }
+        // The last visit and the last piece of work, shown beside the name.
+        // `null` on both means the person has not been here since presence
+        // shipped — there is simply no row yet.
+        const presence = await getPresence(ctx, membership.userId);
         let projects: { _id: Id<"projects">; name: string }[] = [];
         if (showProjects && membership.access === "limited") {
           const grants = await ctx.db
@@ -245,6 +250,8 @@ export const members = query({
           role: membership.role,
           access: membership.access,
           projects,
+          lastSeenAt: presence.lastSeenAt,
+          lastActiveAt: presence.lastActiveAt,
         };
       }),
     );

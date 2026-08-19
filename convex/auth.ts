@@ -14,6 +14,7 @@ import {
   buildPasswordResetEmail,
   RESET_LINK_LIFETIME_MINUTES,
 } from "./lib/passwordResetEmail";
+import { deletePresence } from "./lib/presence";
 import { normalizeUserName } from "./lib/validation";
 
 const siteUrl = process.env.SITE_URL!;
@@ -54,6 +55,7 @@ export const authComponent = createClient<DataModel>(components.betterAuth, {
         if (!user) {
           return;
         }
+        await deletePresence(ctx, user._id);
         await ctx.db.delete(user._id);
       },
     },

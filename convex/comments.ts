@@ -23,6 +23,7 @@ import {
 } from "./lib/commentReactions";
 import { deleteFile, isImageMimeType } from "./lib/files";
 import { notifyComment } from "./lib/notifications";
+import { touchActive } from "./lib/presence";
 import { listProjectMemberIds } from "./lib/projectMembers";
 import { getTaskAccess, requireTaskAccess, touchTask } from "./lib/tasks";
 
@@ -111,6 +112,7 @@ export const create = mutation({
       throw new Error("Nejste přihlášeni.");
     }
     const { task, access } = await requireTaskAccess(ctx, userId, args.taskId);
+    await touchActive(ctx, userId);
 
     const existingComments = await ctx.db
       .query("comments")
@@ -177,6 +179,7 @@ export const update = mutation({
     if (comment.authorId !== userId) {
       throw new Error("Komentář může upravit jen jeho autor.");
     }
+    await touchActive(ctx, userId);
 
     const segments = await validateBody(ctx, access, args.body, {
       allowEmpty: (comment.attachmentIds ?? []).length > 0,
@@ -205,6 +208,7 @@ export const remove = mutation({
     if (comment.authorId !== userId && !canManageProject(access)) {
       throw new Error("Komentář může smazat jen jeho autor nebo správce projektu.");
     }
+    await touchActive(ctx, userId);
 
     const attachments = await ctx.db
       .query("files")

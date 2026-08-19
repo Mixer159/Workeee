@@ -14,6 +14,7 @@ import {
   SheetTitle,
   SheetTrigger,
 } from "@/components/ui/sheet";
+import { usePresenceHeartbeat } from "@/hooks/use-presence-heartbeat";
 
 const WorkspaceShell = dynamic(() =>
   import("@/components/workspace/workspace-shell").then(
@@ -24,10 +25,17 @@ const WorkspaceShell = dynamic(() =>
 /**
  * Desktop: fixed left rail. Mobile (< lg): the same rail in a drawer behind a
  * hamburger in the top bar.
+ *
+ * It is also where the presence heartbeat lives, and this is the only place it
+ * fits: it sits inside `AuthGuard` (so it never beats for a visitor) and it is
+ * the one component both signed-in shells pass through — the work mode is a
+ * branch of this function, not a sibling of it — so the beat survives every
+ * navigation between them without ever being mounted twice.
  */
 export function AppShell({ children }: { children: ReactNode }) {
   const [mobileOpen, setMobileOpen] = useState(false);
   const pathname = usePathname();
+  usePresenceHeartbeat();
 
   if (pathname === "/prace") {
     return <WorkspaceShell>{children}</WorkspaceShell>;

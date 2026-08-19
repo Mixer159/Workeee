@@ -169,7 +169,17 @@ export function MentionTextarea({
             )
           }
           onKeyUp={(event) => {
-            if (event.key.startsWith("Arrow") || event.key === "Home" || event.key === "End") {
+            // Up / Down belong to the open picker (consumed in keydown) and
+            // must not re-sync it here: that reset the highlight to the first
+            // row right after the arrow moved it.
+            const pickerOwnsVertical = picker !== null && suggestions.length > 0;
+            const movesCaret =
+              event.key === "ArrowLeft" ||
+              event.key === "ArrowRight" ||
+              event.key === "Home" ||
+              event.key === "End" ||
+              (!pickerOwnsVertical && event.key.startsWith("Arrow"));
+            if (movesCaret) {
               syncPicker(
                 event.currentTarget.value,
                 event.currentTarget.selectionStart,

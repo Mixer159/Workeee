@@ -11,6 +11,7 @@ import { logActivity } from "./lib/activity";
 import { getAuthUserId } from "./lib/auth";
 import { notifyTaskAssigned, notifyTaskCreated } from "./lib/notifications";
 import { appendOrder, byOrder, orderBetween, renumber } from "./lib/ordering";
+import { touchActive } from "./lib/presence";
 import { deleteTaskChildren, requireTaskAccess } from "./lib/tasks";
 import { listProjectStatuses } from "./lib/taskStatuses";
 import { normalizeTitle } from "./lib/validation";
@@ -128,6 +129,7 @@ export const create = mutation({
       throw new Error("Nejste přihlášeni.");
     }
     const { project } = await requireProjectAccess(ctx, userId, args.projectId);
+    await touchActive(ctx, userId);
     const title = normalizeTitle(args.title);
     const status = await requireStatusOfProject(
       ctx,
@@ -172,6 +174,7 @@ export const updateTitle = mutation({
       throw new Error("Nejste přihlášeni.");
     }
     const { task } = await requireTaskAccess(ctx, userId, args.taskId);
+    await touchActive(ctx, userId);
     const title = normalizeTitle(args.title);
     if (title === task.title) {
       return;
@@ -195,6 +198,7 @@ export const setAssignee = mutation({
       throw new Error("Nejste přihlášeni.");
     }
     const { task } = await requireTaskAccess(ctx, userId, args.taskId);
+    await touchActive(ctx, userId);
 
     if (args.assigneeId) {
       const assigneeAccess = await getProjectAccess(
@@ -240,6 +244,7 @@ export const move = mutation({
       throw new Error("Nejste přihlášeni.");
     }
     const { task, access } = await requireTaskAccess(ctx, userId, args.taskId);
+    await touchActive(ctx, userId);
     const status = await requireStatusOfProject(
       ctx,
       args.statusId,
@@ -281,6 +286,7 @@ export const remove = mutation({
     if (task.createdBy !== userId && !canManageProject(access)) {
       throw new Error("Úkol může smazat jen jeho autor nebo správce projektu.");
     }
+    await touchActive(ctx, userId);
 
     await deleteTaskChildren(ctx, task._id);
     await ctx.db.delete(task._id);

@@ -140,6 +140,8 @@ describe("what counts as unseen", () => {
         .toEqual([{ taskId, unreadComments: 1, isNew: false }]);
 
       // Opening the task clears it, and the next comment starts counting again.
+      // The visit has to be strictly after the comment, same rule as above.
+      vi.setSystemTime(Date.now() + 1);
       await owner.as.mutation(api.taskSeen.markSeen, { taskId });
       expect(await owner.as.query(api.taskSeen.unreadByProject, { projectId }))
         .toEqual([]);

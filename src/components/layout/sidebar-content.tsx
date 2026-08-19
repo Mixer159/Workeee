@@ -1,13 +1,15 @@
 "use client";
 
 import Link from "next/link";
-import { MessageSquareTextIcon } from "lucide-react";
+import { usePathname } from "next/navigation";
+import { MessageSquareTextIcon, UsersIcon } from "lucide-react";
 import { Wordmark } from "@/components/layout/wordmark";
 import { NotificationsLink } from "@/components/layout/notifications-link";
 import { OrganizationSwitcher } from "@/components/layout/organization-switcher";
 import { ProjectsNav } from "@/components/layout/projects-nav";
 import { UserMenu } from "@/components/layout/user-menu";
 import { NewProjectButton } from "@/components/projects/new-project-button";
+import { cn } from "@/lib/utils";
 
 /**
  * Shared rail body — rendered inside the fixed desktop rail and inside the
@@ -21,6 +23,9 @@ import { NewProjectButton } from "@/components/projects/new-project-button";
  * when the drawer is open over it.
  */
 export function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
+  const pathname = usePathname();
+  const teamActive = pathname.startsWith("/tym");
+
   return (
     <div className="flex h-full flex-col">
       <div className="flex h-14 shrink-0 items-center border-b border-sidebar-border px-4">
@@ -44,6 +49,22 @@ export function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
         {/* Above the projects, not among them: what is new comes before where
             to go, and the row must never read as one more project. */}
         <NotificationsLink onNavigate={onNavigate} />
+        {/* People sit above the projects for the same reason notifications
+            do: who is around is context for the work, not one item of it. */}
+        <Link
+          href="/tym"
+          onClick={onNavigate}
+          aria-current={teamActive ? "page" : undefined}
+          className={cn(
+            "flex h-9 items-center gap-3 px-3 text-sm transition-colors outline-none focus-visible:ring-3 focus-visible:ring-ring/40",
+            teamActive
+              ? "bg-sidebar-accent font-medium text-sidebar-accent-foreground"
+              : "text-muted-foreground hover:bg-sidebar-accent/60 hover:text-sidebar-foreground",
+          )}
+        >
+          <UsersIcon className="size-4 shrink-0" />
+          Tým
+        </Link>
         <ProjectsNav onNavigate={onNavigate} />
         <NewProjectButton onNavigate={onNavigate} />
       </div>

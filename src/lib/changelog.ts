@@ -22,6 +22,23 @@ export type ChangelogEntry = {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    date: "2026-08-19",
+    title: "Kdo je tu a kdo kdy naposledy pracoval",
+    tags: ["Tým"],
+    items: [
+      "Nová stránka Tým v levém panelu ukazuje všechny členy organizace, kdo je zrovna online a kdy byl kdo naposledy v aplikaci a naposledy něco udělal: založil nebo přesunul úkol, upravil popis, přidal soubor, komentář nebo reakci.",
+      "Totéž vidí správci u členů v nastavení organizace.",
+    ],
+  },
+  {
+    date: "2026-08-19",
+    title: "Výběr zmínky šipkami",
+    tags: ["Komentáře"],
+    items: [
+      "V nabídce po napsání @ se šipkami dolů a nahoru projdou všichni navržení lidé; dřív se výběr vracel na první řádek a na třetího a další se klávesnicí nešlo dostat.",
+    ],
+  },
+  {
     date: "2026-08-18",
     title: "Zapomenuté heslo",
     tags: ["Přihlášení"],

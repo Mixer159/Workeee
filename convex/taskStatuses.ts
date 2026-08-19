@@ -4,6 +4,7 @@ import { mutation, query, type MutationCtx } from "./_generated/server";
 import { getProjectAccess, requireProjectAccess } from "./lib/access";
 import { getAuthUserId } from "./lib/auth";
 import { ORDER_STEP, appendOrder, byOrder, renumber } from "./lib/ordering";
+import { touchActive } from "./lib/presence";
 import { listProjectStatuses } from "./lib/taskStatuses";
 import { normalizeName } from "./lib/validation";
 import { taskStatusColors } from "./schema";
@@ -50,6 +51,7 @@ export const create = mutation({
       throw new Error("Nejste přihlášeni.");
     }
     const { project } = await requireProjectAccess(ctx, userId, args.projectId);
+    await touchActive(ctx, userId);
     const name = normalizeName(args.name, "stavu");
 
     const statuses = await listProjectStatuses(ctx, args.projectId);
@@ -82,6 +84,7 @@ export const update = mutation({
       throw new Error("Nejste přihlášeni.");
     }
     const { status } = await requireStatus(ctx, userId, args.statusId);
+    await touchActive(ctx, userId);
 
     const patch: Partial<Doc<"taskStatuses">> = {};
     if (args.name !== undefined) {
@@ -116,6 +119,7 @@ export const reorder = mutation({
       throw new Error("Nejste přihlášeni.");
     }
     await requireProjectAccess(ctx, userId, args.projectId);
+    await touchActive(ctx, userId);
 
     const statuses = await listProjectStatuses(ctx, args.projectId);
     const byId = new Map(statuses.map((status) => [status._id, status]));
@@ -162,6 +166,7 @@ export const remove = mutation({
       throw new Error("Nejste přihlášeni.");
     }
     const { status } = await requireStatus(ctx, userId, args.statusId);
+    await touchActive(ctx, userId);
     if (status.kind !== "custom") {
       throw new Error("Základní stavy nejde smazat.");
     }

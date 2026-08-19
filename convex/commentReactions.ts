@@ -5,6 +5,7 @@ import {
   listCommentReactions,
   MAX_COMMENT_REACTION_TYPES,
 } from "./lib/commentReactions";
+import { touchActive } from "./lib/presence";
 import { requireTaskAccess, touchTask } from "./lib/tasks";
 import { normalizeReactionEmoji } from "./lib/validation";
 
@@ -25,6 +26,7 @@ export const toggle = mutation({
       throw new Error("Tento komentář už neexistuje.");
     }
     const { task } = await requireTaskAccess(ctx, userId, comment.taskId);
+    await touchActive(ctx, userId);
     const emoji = normalizeReactionEmoji(args.emoji);
     const existing = await ctx.db
       .query("commentReactions")

@@ -412,6 +412,22 @@ export default defineSchema({
   }).index("by_user", ["userId"]),
 
   /**
+   * When a person was last in the app and when they last *did* something —
+   * one row per user, global, not per organization: a colleague in any of
+   * their organizations may see it. `lastSeenAt` is written by the heartbeat
+   * the app shell sends while the tab is visible, `lastActiveAt` by the
+   * mutations that count as work (see `convex/lib/presence.ts`). Both writes
+   * are throttled server-side, so typing a description does not rewrite the
+   * row every second. A missing row means "never signed in since the feature
+   * shipped".
+   */
+  userPresence: defineTable({
+    userId: v.id("users"),
+    lastSeenAt: v.number(),
+    lastActiveAt: v.optional(v.number()),
+  }).index("by_user", ["userId"]),
+
+  /**
    * One task waiting to go out to one person — the queue the digest is built
    * from. See `convex/lib/notifications.ts`.
    *
