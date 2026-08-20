@@ -19,17 +19,14 @@ import type {
 
 const SITE = "https://workeee.vercel.app";
 
-function task(
-  title: string,
-  index: number,
-  kind: DigestTaskItem["kind"] = "task_created",
-): DigestTaskItem {
+/** Every task in a digest is an assignment — a created task is feed-only. */
+function task(title: string, index: number): DigestTaskItem {
   return {
     type: "task",
     taskId: `task_${index}` as Id<"tasks">,
     projectId: "project_1" as Id<"projects">,
     title,
-    kind,
+    kind: "task_assigned",
     actorName: "Jana Nováková",
   };
 }
@@ -213,8 +210,7 @@ describe("body", () => {
         {
           projectName: "Web",
           items: [
-            task("A", 1, "task_assigned"),
-            task("B", 2, "task_created"),
+            task("A", 1),
             comment("C", 3, { kind: "comment_mention" }),
             comment("D", 4, { kind: "comment_added" }),
           ],
@@ -223,7 +219,6 @@ describe("body", () => {
       SITE,
     );
     expect(mail.text).toContain("Přiřazeno vám · Jana Nováková");
-    expect(mail.text).toContain("Nový úkol · Jana Nováková");
     expect(mail.text).toContain("Zmínka v komentáři · Jana Nováková");
     expect(mail.text).toContain("Nový komentář · Jana Nováková");
     expect(mail.text).not.toContain("Přidal ");

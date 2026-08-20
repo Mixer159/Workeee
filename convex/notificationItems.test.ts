@@ -147,10 +147,16 @@ describe("who gets a feed row", () => {
     );
     await petr.as.mutation(api.notifications.setTaskEmails, { enabled: false });
 
-    await owner.as.mutation(api.tasks.create, {
+    // An assignment, because that is what mails — a task merely appearing on
+    // the board never reaches an inbox, switch or no switch.
+    const { taskId } = await owner.as.mutation(api.tasks.create, {
       projectId,
       statusId,
       title: "Bez e-mailu",
+    });
+    await owner.as.mutation(api.tasks.setAssignee, {
+      taskId,
+      assigneeId: petr.userId,
     });
 
     const queued = await t.run(async (ctx) =>

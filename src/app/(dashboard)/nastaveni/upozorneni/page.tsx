@@ -21,10 +21,10 @@ export default function NotificationSettingsPage() {
         <CardHeader>
           <CardTitle>Úkoly a komentáře</CardTitle>
           <CardDescription>
-            Dáme vědět, když vám někdo přiřadí úkol, přidá nový do projektu,
-            který vidíte, zmíní vás přes @ nebo napíše pod úkol, který řešíte.
-            Všechno se sbírá do jednoho souhrnu — když toho někdo nadělá osm za
-            sebou, přijde jeden e-mail se vším.
+            E-mail přijde, když vám někdo přiřadí úkol, zmíní vás přes @ nebo
+            napíše komentář pod úkol, který řešíte. Nové úkoly v projektech
+            uvidíte v aplikaci v Upozorněních. Když se toho sejde víc za sebou,
+            přijde jeden souhrnný e-mail.
           </CardDescription>
         </CardHeader>
         <CardContent>

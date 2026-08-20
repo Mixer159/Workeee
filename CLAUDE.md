@@ -1038,25 +1038,31 @@ raise `limit` before that stops being true.
 
 ## Upozornění (Phase 11)
 
-One e-mail per person per burst, never one per event. Four things trigger it,
-and all four go into a queue rather than out of the mutation that caused them:
+One e-mail per person per burst, never one per event. Four things happen, and
+three of them go into the e-mail queue rather than out of the mutation that
+caused them — the fourth is shown in the app and never mailed:
 
 | Kind | Who hears about it |
 |---|---|
 | `task_assigned` | the new řešitel |
-| `task_created` | everyone who can open the project |
+| `task_created` | everyone who can open the project — **the feed only, no e-mail** |
 | `comment_mention` | everyone the comment `@`-names |
 | `comment_added` | the task's řešitel |
 
-Since Phase 15 every one of them also lands in **the in-app feed** — same
-audience, same collapsing, no switch. See **The second channel** below.
+Every one of them also lands in **the in-app feed** (Phase 15) — same audience,
+same collapsing, no switch — which since Phase 23 makes the feed the **wider**
+of the two channels: `task_created` is shown there and nowhere else. See **The
+second channel** below.
 
-**Comments are deliberately narrower than tasks.** A new task is rare and
-concerns the whole project; comments outnumber tasks by an order of magnitude,
-and mailing everybody about every reply would make one lively thread shout at
-the entire team — and on a 300-a-day free tier, that is also a real ceiling. So
-a comment reaches the two people it is actually about, and anyone else is pulled
-in with a mention. That is what mentions are *for*, and it is why
+**An e-mail is addressed to a person, the feed is addressed to a project.**
+Comments outnumber tasks by an order of magnitude, and mailing everybody about
+every reply would make one lively thread shout at the entire team — and on a
+300-a-day free tier, that is also a real ceiling. So a comment reaches the two
+people it is actually about, and anyone else is pulled in with a mention. Phase
+23 held tasks to the same rule: a new task in a project you can open is worth
+knowing, but nobody sent it *to you*, so it is a feed row and not an inbox.
+What still reaches an inbox is what somebody did to you — assigned, named,
+replied under your task. That is what mentions are *for*, and it is why
 `convex/lib/commentBody.ts` has stored them as real user ids from the start.
 
 ### Two categories, one row each
@@ -1079,8 +1085,10 @@ by the same rule, and exactly one module owns it.
 
 ### The second channel: the feed and the badges (Phase 15)
 
-The same four events, shown inside the app. Three surfaces, all counted from
-the same two tables and clearing from the same action:
+The same four events, shown inside the app — including the one the digest no
+longer carries, `task_created`, which lives here and nowhere else. Three
+surfaces, all counted from the same two tables and clearing from the same
+action:
 
 - **`/upozorneni`** — the feed. `notificationItems` rows written by the same
   `notify*` calls that enqueue e-mail (`convex/lib/notificationItems.ts`), one
@@ -1096,9 +1104,12 @@ the same two tables and clearing from the same action:
 
 The differences from the e-mail queue are the whole design:
 
-- **The feed ignores `notificationSettings`.** The switch turns off e-mail, not
-  being told; a feed row costs nobody an inbox. So `pushNotificationItem` is
-  called from the `notify*` functions *before* `enqueue` filters by the switch.
+- **The feed is the wider channel, and it ignores `notificationSettings`.**
+  `task_created` is pushed here and enqueued for nobody; the other three go to
+  both. And the switch turns off e-mail, not being told: a feed row costs
+  nobody an inbox. So `pushNotificationItem` is called from the `notify*`
+  functions *before* `enqueue` filters by the switch — and for a new task,
+  instead of it.
 - **Nothing is drained.** The queue is claimed at flush; a feed row lives until
   it is read, and `readAt` (absent = unread) is that state. A new event on a
   row already read starts a fresh burst counting from one.
@@ -1280,7 +1291,7 @@ thing: online now.
 | `/projekt/[id]` | project members | Project header + settings dialog for managers + the Kanban board. `?ukol=<taskId>` opens that task in the drawer on the right: title, status, assignee, meta, block-editor description, Přílohy, Komentáře |
 | `/projekt/[id]/ukol/[taskId]` | project members | Redirect to `/projekt/[id]?ukol=<taskId>` — the detail is a drawer now |
 | `/nastaveni/organizace` | org managers | Rename, members table, organization invites; the owner also gets the delete card |
-| `/nastaveni/upozorneni` | authenticated | One switch: e-mail digests of new tasks. Personal, so no manager guard — reached from the user menu ("Nastavení upozornění") |
+| `/nastaveni/upozorneni` | authenticated | One switch: e-mail digests of assignments, mentions and comments on tasks you are řešitel of. Personal, so no manager guard — reached from the user menu ("Nastavení upozornění") |
 | `/tym` | authenticated | The colleagues of the current organization: every member with role, whether they are online right now, when they were last in the app and when they last did something. The same list managers see in the organization settings, without the controls. Reached from the rail's "Tým" link |
 | `/upozorneni` | authenticated | The in-app notification feed: new tasks, assignments, mentions and comments, unread first by nature. Reached from the rail's "Upozornění" link, which carries the unread count; a row links into the task's drawer, and opening it is what marks it read |
 | `/join/[code]` | **public** | Invite summary; unauthenticated visitors go to `/registrace?invite=<code>` or `/prihlaseni?invite=<code>` and come back here to accept |
@@ -1803,6 +1814,12 @@ Day-one decisions:
   from the app shell and a `touchActive` in the mutations that count as work,
   both throttled server-side, on one `userPresence` row per user. See
   **Přítomnost**.
+- **Phase 23 (done).** The digest stopped mailing a new task to everybody who
+  can open the project. An e-mail now arrives only for what was addressed to
+  the person — assigned to them, a comment naming them, a reply under a task
+  they are řešitel of — while a new task stays in the in-app feed, on the task
+  card and on the project row. The feed is therefore the wider of the two
+  channels now, not a copy of the digest.
 - **Later.** List view, due dates, filters in the URL, activity timeline,
   audit log surface.
 

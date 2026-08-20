@@ -42,6 +42,10 @@ export function buildTaskDigest(
  * "Nový úkol: Opravit fakturaci" · "3 nové úkoly v projektu Web" ·
  * "2 nové úkoly a 3 komentáře" · "8 nových úkolů".
  *
+ * Every task in a digest is one assigned to the reader, and "Nový úkol" still
+ * says the true thing about it: it is new to them. The label under the title
+ * is the one that names the assignment.
+ *
  * The count is in the subject because that is what the person decides on
  * without opening anything. Across several projects it deliberately names none
  * of them: "ve 3 projektech" versus "v 5 projektech" is a preposition that
@@ -213,7 +217,8 @@ function subtitle(item: DigestItem): string {
   const parts: string[] = [];
 
   if (item.type === "task") {
-    parts.push(item.kind === "task_assigned" ? "Přiřazeno vám" : "Nový úkol");
+    // Only assignments are mailed, so there is one label and no alternative.
+    parts.push("Přiřazeno vám");
   } else {
     parts.push(
       item.kind === "comment_mention" ? "Zmínka v komentáři" : "Nový komentář",

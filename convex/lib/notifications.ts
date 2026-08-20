@@ -14,12 +14,19 @@ import { listProjectMemberIds } from "./projectMembers";
 /**
  * Notification batching.
  *
- * The rule the product asked for: eight tasks added in one sitting must arrive
- * as **one** e-mail, not eight. So nothing is ever sent from the mutation that
- * caused it. Each recipient gets a row in `notificationEvents`, and the first
- * of them opens a **window** — a single scheduled flush, recorded in
- * `notificationBatches`, that every further event of that burst rides along
- * with instead of scheduling its own.
+ * **E-mail goes only to the people an event is actually about**: the new
+ * řešitel of a task, whoever a comment `@`-names, and the řešitel of the task
+ * a comment was written under. A task simply appearing on a board is not one
+ * of them — it lands in the in-app feed (`./notificationItems.ts`) for
+ * everybody who can open the project and stops there. The feed's audience is
+ * therefore wider than this queue's, on purpose.
+ *
+ * The rule the product asked for: eight tasks assigned in one sitting must
+ * arrive as **one** e-mail, not eight. So nothing is ever sent from the
+ * mutation that caused it. Each recipient gets a row in `notificationEvents`,
+ * and the first of them opens a **window** — a single scheduled flush,
+ * recorded in `notificationBatches`, that every further event of that burst
+ * rides along with instead of scheduling its own.
  *
  * The window slides. Every new event pushes the send to `now + QUIET_MS`, so
  * the digest goes out once the person has actually stopped typing rather than
@@ -76,7 +83,8 @@ export type DigestTaskItem = {
   taskId: Id<"tasks">;
   projectId: Id<"projects">;
   title: string;
-  kind: "task_created" | "task_assigned";
+  /** Only assignment mails. A task merely being created is feed-only. */
+  kind: "task_assigned";
   actorName: string;
 };
 
@@ -127,26 +135,33 @@ export async function wantsTaskEmails(
 }
 
 /**
- * A new task on the board: everyone who can open the project hears about it,
- * except the person who just typed it.
+ * A new task on the board: everyone who can open the project sees it in the
+ * feed, except the person who just typed it.
  *
- * Each `notify*` writes both channels — the in-app feed row first (it takes no
- * switch into account), then the e-mail queue, which `enqueue` filters by the
- * personal switch. One audience computation, two deliveries.
+ * **Feed only — no e-mail.** A task appearing on a board is not yet about
+ * anybody in particular; what makes it somebody's business is being assigned
+ * it, or being named in the discussion under it. Those two do mail.
  */
 export async function notifyTaskCreated(
   ctx: MutationCtx,
   task: Doc<"tasks">,
   actorId: Id<"users">,
 ): Promise<void> {
-  const recipients = [
-    ...(await listProjectMemberIds(ctx, task.projectId, task.organizationId)),
-  ];
+  const recipients = await listProjectMemberIds(
+    ctx,
+    task.projectId,
+    task.organizationId,
+  );
   await pushNotificationItem(ctx, recipients, task, actorId, "task_created");
-  await enqueue(ctx, recipients, task, actorId, "task_created");
 }
 
-/** A task handed to somebody. Only the new řešitel, and never for oneself. */
+/**
+ * A task handed to somebody. Only the new řešitel, and never for oneself.
+ *
+ * Both channels, in order: the in-app feed row first (it takes no switch into
+ * account), then the e-mail queue, which `enqueue` filters by the personal
+ * switch. One audience computation, two deliveries.
+ */
 export async function notifyTaskAssigned(
   ctx: MutationCtx,
   task: Doc<"tasks">,
@@ -166,6 +181,9 @@ export async function notifyTaskAssigned(
  * whoever the comment `@`-mentions, and the task's řešitel, because it is
  * their task being talked about. Anyone else is pulled in with a mention,
  * which is what mentions are for.
+ *
+ * Both of them are e-mailed, and both are the whole of what the queue carries
+ * about a comment; the feed row goes to the same two people.
  */
 export async function notifyComment(
   ctx: MutationCtx,
@@ -207,12 +225,19 @@ export async function notifyComment(
   }
 }
 
+/**
+ * The kinds that may reach an inbox. `task_created` is excluded by the type,
+ * not by a convention somebody has to remember: the feed carries it, e-mail
+ * does not.
+ */
+type EmailKind = Exclude<NotificationKind, "task_created">;
+
 async function enqueue(
   ctx: MutationCtx,
   recipients: Id<"users">[],
   task: Doc<"tasks">,
   actorId: Id<"users">,
-  kind: NotificationKind,
+  kind: EmailKind,
   commentId?: Id<"comments">,
 ): Promise<void> {
   if (recipients.length === 0) {
@@ -415,12 +440,17 @@ export async function claimDigest(
     const actorName = actors.get(event.actorId)!;
 
     if (categoryOf(event.kind) === "task") {
+      if (event.kind !== "task_assigned") {
+        // A `task_created` row queued before e-mail narrowed to assignments.
+        // It has already been deleted above, so dropping it here loses nothing.
+        continue;
+      }
       const item: DigestTaskItem = {
         type: "task",
         taskId: task._id,
         projectId: event.projectId,
         title: task.title,
-        kind: event.kind as DigestTaskItem["kind"],
+        kind: "task_assigned",
         actorName,
       };
       project.items.push(item);

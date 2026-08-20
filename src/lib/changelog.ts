@@ -22,6 +22,15 @@ export type ChangelogEntry = {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    date: "2026-08-20",
+    title: "E-mail jen tomu, koho se to týká",
+    tags: ["Upozornění"],
+    items: [
+      "E-mail o novém úkolu už nechodí všem, kdo projekt vidí. Přijde jen, když vám někdo úkol přiřadí, zmíní vás v komentáři nebo napíše pod úkol, který řešíte.",
+      "Nové úkoly dál uvidíte v aplikaci v Upozorněních a jako tečku na kartě úkolu.",
+    ],
+  },
+  {
     date: "2026-08-19",
     title: "Kdo je tu a kdo kdy naposledy pracoval",
     tags: ["Tým"],

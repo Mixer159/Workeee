@@ -27,7 +27,7 @@ const FEATURES = [
   },
   {
     title: "Upozornění po dávkách",
-    body: "Osm změn za sebou je jeden e-mail s počtem v předmětu, ne osm zpráv. V aplikaci je kanál s nepřečtenými nahoře.",
+    body: "Přiřazení, zmínka a komentář chodí e-mailem po dávkách: osm změn za sebou je jedna zpráva s počtem v předmětu. V aplikaci je kanál s nepřečtenými nahoře.",
   },
   {
     title: "Šest vzhledů",

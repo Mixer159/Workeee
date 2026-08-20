@@ -121,8 +121,24 @@ async function addTask(
   return taskId;
 }
 
+/**
+ * A task handed to somebody, which is what puts a task line in their e-mail
+ * queue — creating one no longer does, it only writes the in-app feed.
+ */
+async function addAssignedTask(
+  owner: { as: Identity },
+  projectId: Id<"projects">,
+  statusId: Id<"taskStatuses">,
+  title: string,
+  assigneeId: Id<"users">,
+) {
+  const taskId = await addTask(owner, projectId, statusId, title);
+  await owner.as.mutation(api.tasks.setAssignee, { taskId, assigneeId });
+  return taskId;
+}
+
 describe("who gets queued", () => {
-  test("a new task reaches every project member except its author", async () => {
+  test("a new task queues no e-mail for anybody", async () => {
     const t = setup();
     const { owner, organizationId, projectId, statusId } =
       await createWorkspace(t);
@@ -136,8 +152,21 @@ describe("who gets queued", () => {
 
     await addTask(owner, projectId, statusId, "Opravit fakturaci");
 
-    expect(await pendingFor(t, petr.userId)).toHaveLength(1);
+    expect(await pendingFor(t, petr.userId)).toHaveLength(0);
     expect(await pendingFor(t, owner.userId)).toHaveLength(0);
+
+    // Only the inbox got quieter: the feed still tells everybody who can open
+    // the project that the task exists.
+    const items = await t.run(async (ctx) =>
+      await ctx.db
+        .query("notificationItems")
+        .withIndex("by_user_org", (q) =>
+          q.eq("userId", petr.userId).eq("organizationId", organizationId),
+        )
+        .collect(),
+    );
+    expect(items).toHaveLength(1);
+    expect(items[0].kind).toBe("task_created");
   });
 
   test("somebody who cannot open the project hears nothing", async () => {
@@ -158,7 +187,29 @@ describe("who gets queued", () => {
     });
     await outsider.as.mutation(api.invites.accept, { code });
 
-    await addTask(owner, projectId, statusId, "Opravit fakturaci");
+    const taskId = await addTask(owner, projectId, statusId, "Opravit fakturaci");
+
+    // The two things that do mail are both refused for her: she cannot be
+    // handed a task she cannot open, and she cannot be named under one.
+    await expect(
+      owner.as.mutation(api.tasks.setAssignee, {
+        taskId,
+        assigneeId: outsider.userId,
+      }),
+    ).rejects.toThrow();
+    await expect(
+      owner.as.mutation(api.comments.create, {
+        taskId,
+        body: JSON.stringify([
+          { type: "text", text: "Mrkni na to " },
+          {
+            type: "mention",
+            userId: outsider.userId,
+            name: "Eva Dvořáková",
+          },
+        ]),
+      }),
+    ).rejects.toThrow();
 
     expect(await pendingFor(t, outsider.userId)).toHaveLength(0);
   });
@@ -175,9 +226,6 @@ describe("who gets queued", () => {
       "petr@example.com",
     );
     const taskId = await addTask(owner, projectId, statusId, "Opravit fakturaci");
-
-    // Clear what the creation queued, so the assignment stands alone.
-    await t.mutation(internal.notifications.claim, { userId: petr.userId });
 
     await owner.as.mutation(api.tasks.setAssignee, {
       taskId,
@@ -203,7 +251,7 @@ describe("who gets queued", () => {
     expect(await pendingFor(t, owner.userId)).toHaveLength(0);
   });
 
-  test("created and then assigned inside one window is one line, the stronger one", async () => {
+  test("assigned twice inside one window is one line, not two", async () => {
     const t = setup();
     const { owner, organizationId, projectId, statusId } =
       await createWorkspace(t);
@@ -215,7 +263,18 @@ describe("who gets queued", () => {
       "petr@example.com",
     );
 
-    const taskId = await addTask(owner, projectId, statusId, "Opravit fakturaci");
+    const taskId = await addAssignedTask(
+      owner,
+      projectId,
+      statusId,
+      "Opravit fakturaci",
+      petr.userId,
+    );
+    // Handed away and handed back: two notifications about one task.
+    await owner.as.mutation(api.tasks.setAssignee, {
+      taskId,
+      assigneeId: owner.userId,
+    });
     await owner.as.mutation(api.tasks.setAssignee, {
       taskId,
       assigneeId: petr.userId,
@@ -257,8 +316,6 @@ describe("comments", () => {
     );
 
     const taskId = await addTask(owner, projectId, statusId, "Opravit fakturaci");
-    await t.mutation(internal.notifications.claim, { userId: petr.userId });
-    await t.mutation(internal.notifications.claim, { userId: eva.userId });
 
     await owner.as.mutation(api.comments.create, {
       taskId,
@@ -330,19 +387,25 @@ describe("comments", () => {
       "petr@example.com",
     );
 
-    const taskId = await addTask(owner, projectId, statusId, "Opravit fakturaci");
+    const taskId = await addAssignedTask(
+      owner,
+      projectId,
+      statusId,
+      "Opravit fakturaci",
+      petr.userId,
+    );
     await owner.as.mutation(api.comments.create, {
       taskId,
       body: body("Hned k tomu ", { userId: petr.userId, name: "Petr Svoboda" }),
     });
 
     // Two rows: one per category. Without the split the comment would have
-    // replaced the notification about the task itself.
+    // replaced the notification about the assignment itself.
     const pending = await pendingFor(t, petr.userId);
     expect(pending).toHaveLength(2);
     expect(pending.map((event) => event.kind).sort()).toEqual([
       "comment_mention",
-      "task_created",
+      "task_assigned",
     ]);
 
     const digest = await t.mutation(internal.notifications.claim, {
@@ -530,7 +593,13 @@ describe("the batching window", () => {
     );
 
     for (let index = 0; index < 8; index += 1) {
-      await addTask(owner, projectId, statusId, `Úkol ${index + 1}`);
+      await addAssignedTask(
+        owner,
+        projectId,
+        statusId,
+        `Úkol ${index + 1}`,
+        petr.userId,
+      );
       // Half a minute of typing between tasks.
       vi.setSystemTime(Date.now() + 30_000);
     }
@@ -556,11 +625,11 @@ describe("the batching window", () => {
       "petr@example.com",
     );
 
-    await addTask(owner, projectId, statusId, "První");
+    await addAssignedTask(owner, projectId, statusId, "První", petr.userId);
     const first = await windowFor(t, petr.userId);
 
     vi.setSystemTime(Date.now() + 30_000);
-    await addTask(owner, projectId, statusId, "Druhý");
+    await addAssignedTask(owner, projectId, statusId, "Druhý", petr.userId);
     const second = await windowFor(t, petr.userId);
 
     expect(second!._id).toBe(first!._id);
@@ -580,14 +649,20 @@ describe("the batching window", () => {
       "petr@example.com",
     );
 
-    await addTask(owner, projectId, statusId, "První");
+    await addAssignedTask(owner, projectId, statusId, "První", petr.userId);
     const opened = (await windowFor(t, petr.userId))!;
 
     // Somebody who keeps adding tasks all morning must not postpone the digest
     // forever: past `MAX_WAIT_MS` it goes out and the next batch starts.
     for (let index = 0; index < 20; index += 1) {
       vi.setSystemTime(Date.now() + 60_000);
-      await addTask(owner, projectId, statusId, `Další ${index}`);
+      await addAssignedTask(
+        owner,
+        projectId,
+        statusId,
+        `Další ${index}`,
+        petr.userId,
+      );
     }
 
     const held = (await windowFor(t, petr.userId))!;
@@ -610,7 +685,13 @@ describe("the switch", () => {
     );
 
     await petr.as.mutation(api.notifications.setTaskEmails, { enabled: false });
-    await addTask(owner, projectId, statusId, "Opravit fakturaci");
+    await addAssignedTask(
+      owner,
+      projectId,
+      statusId,
+      "Opravit fakturaci",
+      petr.userId,
+    );
 
     expect(await pendingFor(t, petr.userId)).toHaveLength(0);
     expect(await windowFor(t, petr.userId)).toBeNull();
@@ -649,7 +730,13 @@ describe("the switch", () => {
       "petr@example.com",
     );
 
-    await addTask(owner, projectId, statusId, "Opravit fakturaci");
+    await addAssignedTask(
+      owner,
+      projectId,
+      statusId,
+      "Opravit fakturaci",
+      petr.userId,
+    );
     await petr.as.mutation(api.notifications.setTaskEmails, { enabled: false });
 
     expect(
@@ -672,8 +759,20 @@ describe("what the flush checks again", () => {
       "petr@example.com",
     );
 
-    await addTask(owner, projectId, statusId, "Opravit fakturaci");
-    await addTask(owner, projectId, statusId, "Nasadit web");
+    await addAssignedTask(
+      owner,
+      projectId,
+      statusId,
+      "Opravit fakturaci",
+      petr.userId,
+    );
+    await addAssignedTask(
+      owner,
+      projectId,
+      statusId,
+      "Nasadit web",
+      petr.userId,
+    );
 
     const digest = await t.mutation(internal.notifications.claim, {
       userId: petr.userId,
@@ -701,7 +800,13 @@ describe("what the flush checks again", () => {
       "petr@example.com",
     );
 
-    const taskId = await addTask(owner, projectId, statusId, "Bez názvu");
+    const taskId = await addAssignedTask(
+      owner,
+      projectId,
+      statusId,
+      "Bez názvu",
+      petr.userId,
+    );
     await owner.as.mutation(api.tasks.updateTitle, {
       taskId,
       title: "Opravit fakturaci",
@@ -725,8 +830,20 @@ describe("what the flush checks again", () => {
       "petr@example.com",
     );
 
-    const taskId = await addTask(owner, projectId, statusId, "Omyl");
-    await addTask(owner, projectId, statusId, "Opravit fakturaci");
+    const taskId = await addAssignedTask(
+      owner,
+      projectId,
+      statusId,
+      "Omyl",
+      petr.userId,
+    );
+    await addAssignedTask(
+      owner,
+      projectId,
+      statusId,
+      "Opravit fakturaci",
+      petr.userId,
+    );
     await owner.as.mutation(api.tasks.remove, { taskId });
 
     const digest = await t.mutation(internal.notifications.claim, {
@@ -748,7 +865,13 @@ describe("what the flush checks again", () => {
       "petr@example.com",
     );
 
-    await addTask(owner, projectId, statusId, "Opravit fakturaci");
+    await addAssignedTask(
+      owner,
+      projectId,
+      statusId,
+      "Opravit fakturaci",
+      petr.userId,
+    );
     expect(await pendingFor(t, petr.userId)).toHaveLength(1);
 
     await owner.as.mutation(api.organizations.removeMember, {
@@ -773,11 +896,51 @@ describe("what the flush checks again", () => {
       "petr@example.com",
     );
 
-    await addTask(owner, projectId, statusId, "Opravit fakturaci");
+    await addAssignedTask(
+      owner,
+      projectId,
+      statusId,
+      "Opravit fakturaci",
+      petr.userId,
+    );
     await t.mutation(internal.notifications.claim, { userId: petr.userId });
 
     expect(await pendingFor(t, petr.userId)).toHaveLength(0);
     expect(await windowFor(t, petr.userId)).toBeNull();
+  });
+
+  test("a row queued as `task_created` before the rule changed is skipped", async () => {
+    const t = setup();
+    const { owner, organizationId, projectId, statusId } =
+      await createWorkspace(t);
+    const petr = await addFullMember(
+      t,
+      owner,
+      organizationId,
+      "Petr Svoboda",
+      "petr@example.com",
+    );
+
+    const taskId = await addTask(owner, projectId, statusId, "Starý řádek");
+
+    // What the queue used to hold. Nothing writes this kind any more, but a
+    // deployment upgraded mid-window still has rows like this one waiting.
+    await t.run(async (ctx) => {
+      await ctx.db.insert("notificationEvents", {
+        userId: petr.userId,
+        organizationId,
+        projectId,
+        taskId,
+        kind: "task_created",
+        actorId: owner.userId,
+      });
+    });
+
+    expect(
+      await t.mutation(internal.notifications.claim, { userId: petr.userId }),
+    ).toBeNull();
+    // Skipped, but still claimed — it cannot come back on the next flush.
+    expect(await pendingFor(t, petr.userId)).toHaveLength(0);
   });
 
   test("an empty queue produces no digest at all", async () => {
@@ -811,7 +974,13 @@ describe("the scheduled flush", () => {
     );
 
     for (let index = 0; index < 8; index += 1) {
-      await addTask(owner, projectId, statusId, `Úkol ${index + 1}`);
+      await addAssignedTask(
+        owner,
+        projectId,
+        statusId,
+        `Úkol ${index + 1}`,
+        petr.userId,
+      );
     }
 
     // Nothing goes out: `sendTransactionalEmail` has no API key here and says so
