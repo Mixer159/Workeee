@@ -10,14 +10,17 @@ import {
 } from "@/components/providers/organization-provider";
 import { useCurrentOrganization } from "@/hooks/use-current-organization";
 import { useProjectOrganization } from "@/hooks/use-project-organization";
+import { OrganizationSwitcher } from "@/components/layout/organization-switcher";
 import {
   ORGANIZATION_STORAGE_KEY,
   readStoredOrganizationId,
   storeOrganizationId,
 } from "@/lib/current-organization";
 
-const router = vi.hoisted(() => ({ replace: vi.fn() }));
-vi.mock("next/navigation", () => ({ useRouter: () => router }));
+const router = vi.hoisted(() => ({ replace: vi.fn(), pathname: "/projekt/project-a" }));
+vi.mock("next/navigation", () => ({ useRouter: () => router, usePathname: () => router.pathname }));
+vi.mock("@/components/organizations/create-organization-dialog", () => ({ CreateOrganizationDialog: () => null }));
+vi.mock("@/components/organizations/join-organization-dialog", () => ({ JoinOrganizationDialog: () => null }));
 vi.mock("convex/react", () => ({ useQuery: () => organizations }));
 
 const orgA = "org-a" as Id<"organizations">;
@@ -34,11 +37,12 @@ let container: HTMLDivElement;
 
 function Project({ organizationId }: { organizationId?: Id<"organizations"> }) {
   useProjectOrganization(organizationId);
-  const { organizationId: selectedId, setOrganizationId } = useCurrentOrganization();
+  const { organizationId: selectedId } = useCurrentOrganization();
   return createElement(
-    "button",
-    { onClick: () => setOrganizationId(orgB) },
-    selectedId,
+    "div",
+    null,
+    createElement(OrganizationSwitcher),
+    createElement("output", null, selectedId),
   );
 }
 
@@ -58,9 +62,19 @@ async function renderProject(organizationId?: Id<"organizations">, key = "projec
   });
 }
 
+async function selectOrganization(id: string) {
+  await act(async () => {
+    container.querySelector("button")!.dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowDown", bubbles: true }));
+  });
+  const item = [...document.querySelectorAll("[role=menuitem]")].find((element) => element.textContent === id);
+  expect(item).toBeDefined();
+  await act(async () => item!.dispatchEvent(new MouseEvent("click", { bubbles: true })));
+}
+
 beforeEach(() => {
   vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);
   router.replace.mockClear();
+  router.pathname = "/projekt/project-a";
   organizations = memberships;
   window.localStorage.clear();
   storeOrganizationId(orgA);
@@ -78,10 +92,10 @@ afterEach(async () => {
 describe("project organization navigation", () => {
   it("keeps a switch from an open project and leaves for the overview", async () => {
     await renderProject(orgA);
-    await act(async () => container.querySelector("button")?.click());
+    await selectOrganization(orgB);
 
     expect(readStoredOrganizationId()).toBe(orgB);
-    expect(container.textContent).toBe(orgB);
+    expect(container.querySelector("output")?.textContent).toBe(orgB);
     expect(router.replace).toHaveBeenCalledWith("/");
   });
 
@@ -90,47 +104,55 @@ describe("project organization navigation", () => {
     await renderProject(orgB);
 
     expect(readStoredOrganizationId()).toBe(orgB);
-    expect(container.textContent).toBe(orgB);
+    expect(container.querySelector("output")?.textContent).toBe(orgB);
     expect(router.replace).not.toHaveBeenCalled();
 
     await act(async () => storeOrganizationId(orgA));
     expect(readStoredOrganizationId()).toBe(orgA);
-    expect(router.replace).toHaveBeenCalledWith("/");
+    expect(router.replace).not.toHaveBeenCalled();
   });
 
   it("keeps a new selection when the old project resolves late", async () => {
     await renderProject();
-    await act(async () => container.querySelector("button")?.click());
+    await selectOrganization(orgB);
     expect(router.replace).toHaveBeenCalledWith("/");
 
     await renderProject(orgA);
     expect(readStoredOrganizationId()).toBe(orgB);
-    expect(container.textContent).toBe(orgB);
+    expect(container.querySelector("output")?.textContent).toBe(orgB);
   });
 
-  it("does not write back against another browser tab's selection", async () => {
+  it("ignores another tab restoring the previous organization after a switch", async () => {
     await renderProject(orgA);
+    await selectOrganization(orgB);
+    await renderProject(orgB, "project-b");
+    router.replace.mockClear();
     await act(async () => {
-      window.localStorage.setItem(ORGANIZATION_STORAGE_KEY, orgB);
+      window.localStorage.setItem(ORGANIZATION_STORAGE_KEY, orgA);
       window.dispatchEvent(new StorageEvent("storage", {
         key: ORGANIZATION_STORAGE_KEY,
-        oldValue: orgA,
-        newValue: orgB,
+        oldValue: orgB,
+        newValue: orgA,
         storageArea: window.localStorage,
       }));
     });
-
+    await renderProject(orgB, "project-b");
     expect(readStoredOrganizationId()).toBe(orgB);
-    expect(container.textContent).toBe(orgB);
-    expect(router.replace).toHaveBeenCalledWith("/");
+    expect(container.querySelector("output")?.textContent).toBe(orgB);
+    expect(router.replace).not.toHaveBeenCalled();
+  });
 
-    await renderProject(orgA);
+  it("keeps the current section when switching from Team", async () => {
+    router.pathname = "/tym";
+    await renderProject();
+    await selectOrganization(orgB);
     expect(readStoredOrganizationId()).toBe(orgB);
+    expect(router.replace).not.toHaveBeenCalled();
   });
 
   it("stays on the project when the selected organization is unchanged", async () => {
     await renderProject(orgB);
-    await act(async () => container.querySelector("button")?.click());
+    await selectOrganization(orgB);
     expect(router.replace).not.toHaveBeenCalled();
   });
 
@@ -142,14 +164,14 @@ describe("project organization navigation", () => {
   });
 
   it("adopts the link when there is no saved organization and memberships load later", async () => {
-    window.localStorage.clear();
+    storeOrganizationId(null);
     organizations = undefined;
     await renderProject();
     organizations = memberships;
     await renderProject(orgB);
 
     expect(readStoredOrganizationId()).toBe(orgB);
-    expect(container.textContent).toBe(orgB);
+    expect(container.querySelector("output")?.textContent).toBe(orgB);
     expect(router.replace).not.toHaveBeenCalled();
   });
 });

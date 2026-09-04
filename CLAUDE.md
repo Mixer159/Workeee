@@ -677,9 +677,11 @@ the strip simply has no fade.
 ### Client-side tenant context
 
 `OrganizationProvider` (`src/components/providers/organization-provider.tsx`)
-holds the membership list and the current organization, persisted in
-`localStorage["workeee-org"]` through `src/lib/current-organization.ts`
-(a `useSyncExternalStore` store, not an effect). Read it with:
+holds the membership list and the current organization. Each browser tab owns
+its selection in memory and persists it in `sessionStorage["workeee-org"]`.
+`localStorage["workeee-org"]` only supplies a default for a new tab. Storage
+writes from other tabs never change the active selection. Switching still
+works in memory when browser storage is blocked. Read the context with:
 
 ```ts
 const { organizationId, organization, canManage, setOrganizationId } =
@@ -687,22 +689,21 @@ const { organizationId, organization, canManage, setOrganizationId } =
 const data = useQuery(api.x.list, organizationId ? { organizationId } : "skip");
 ```
 
-The stored id is only a preference — the current organization is always one the
+The stored id is only a preference. The current organization is always one the
 server returned a membership for, so a stale id falls back to the first one.
 `storeOrganizationId` is exported separately for the public join page, which
 lives outside the provider.
 
-`useProjectOrganization` adopts the organization from an opened project link.
-It remembers the stored selection when the project mounts and after its own
-write. A later selection, including one from another browser tab, takes the
-project page back to `/` without overwriting that choice. This also applies
-while the project query is loading. Project pages must never continuously
-write their organization back in response to selection changes, because that
-blocks the switcher and makes tabs with different projects fight over storage.
-The mobile organization switcher closes the navigation after a selection.
-Project invites opened inside the app navigate first; the destination project
-selects its organization so the previous page cannot interrupt that navigation.
-React hook regression tests use `happy-dom`; backend tests retain `edge-runtime`.
+`useProjectOrganization` adopts the organization from an opened project link,
+but ignores late project responses after the user changes the selection.
+The organization switcher directly navigates from a project to `/` when a
+different organization is selected and closes the mobile navigation. Team,
+Notifications and other organization-scoped sections stay on their route.
+Project effects never initiate navigation or respond to another tab's storage
+writes. This prevents tabs from switching each other back and prevents an old
+project page from interrupting navigation to a newly selected project.
+React regression tests exercise the real switcher with `happy-dom`; backend
+tests retain `edge-runtime`.
 
 ## The task detail (Phase 4, reshaped in Phases 6 and 17)
 

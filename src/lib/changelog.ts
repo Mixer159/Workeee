@@ -23,6 +23,14 @@ export type ChangelogEntry = {
 export const CHANGELOG: ChangelogEntry[] = [
   {
     date: "2026-09-04",
+    title: "Každá karta si pamatuje svou organizaci",
+    tags: ["Organizace"],
+    items: [
+      "V různých kartách prohlížeče můžete pracovat v různých organizacích. Přepnutí v jedné už nemění výběr v ostatních, ani po obnovení stránky.",
+    ],
+  },
+  {
+    date: "2026-09-04",
     title: "Přepínání organizací z otevřeného projektu",
     tags: ["Organizace"],
     items: [

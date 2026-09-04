@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
+import { usePathname, useRouter } from "next/navigation";
 import {
   CheckIcon,
   ChevronsUpDownIcon,
@@ -29,6 +30,8 @@ export function OrganizationSwitcher({
 }) {
   const { organizations, organization, canManage, setOrganizationId, isLoading } =
     useCurrentOrganization();
+  const router = useRouter();
+  const pathname = usePathname();
   const [createOpen, setCreateOpen] = useState(false);
   const [joinOpen, setJoinOpen] = useState(false);
 
@@ -61,6 +64,12 @@ export function OrganizationSwitcher({
               key={item._id}
               onSelect={() => {
                 setOrganizationId(item._id);
+                if (
+                  item._id !== organization?._id &&
+                  pathname.startsWith("/projekt/")
+                ) {
+                  router.replace("/");
+                }
                 onNavigate?.();
               }}
             >

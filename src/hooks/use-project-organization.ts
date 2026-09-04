@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useRef } from "react";
-import { useRouter } from "next/navigation";
 import type { Id } from "@convex/_generated/dataModel";
 import { useCurrentOrganization } from "@/hooks/use-current-organization";
 import { readStoredOrganizationId } from "@/lib/current-organization";
@@ -11,7 +10,6 @@ export function useProjectOrganization(
   projectOrganizationId: Id<"organizations"> | undefined,
 ) {
   const { organizationId, setOrganizationId } = useCurrentOrganization();
-  const router = useRouter();
   const expectedStoredId = useRef<string | null | undefined>(undefined);
 
   useEffect(() => {
@@ -20,10 +18,9 @@ export function useProjectOrganization(
       expectedStoredId.current = storedId;
     }
 
-    // A later selection wins, including while the project query is loading
-    // and when it comes from another tab. Never write the old project back.
+    // The switcher owns navigation. A late project response must not undo
+    // a selection made while this page is still mounted.
     if (storedId !== expectedStoredId.current) {
-      router.replace("/");
       return;
     }
 
@@ -31,5 +28,5 @@ export function useProjectOrganization(
       expectedStoredId.current = projectOrganizationId;
       setOrganizationId(projectOrganizationId);
     }
-  }, [projectOrganizationId, organizationId, setOrganizationId, router]);
+  }, [projectOrganizationId, organizationId, setOrganizationId]);
 }
