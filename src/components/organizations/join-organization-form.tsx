@@ -31,7 +31,11 @@ export function JoinOrganizationForm({ onDone }: { onDone?: () => void }) {
     setPending(true);
     try {
       const { organizationId, projectId } = await accept({ code });
-      setOrganizationId(organizationId);
+      // A project invite selects its organization when the destination mounts.
+      // Changing it here would make the current project navigate to the overview.
+      if (!projectId) {
+        setOrganizationId(organizationId);
+      }
       setCode("");
       toast.success("Pozvánka přijata.");
       onDone?.();

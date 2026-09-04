@@ -59,7 +59,10 @@ export function OrganizationSwitcher({
           {organizations?.map((item) => (
             <DropdownMenuItem
               key={item._id}
-              onSelect={() => setOrganizationId(item._id)}
+              onSelect={() => {
+                setOrganizationId(item._id);
+                onNavigate?.();
+              }}
             >
               <CheckIcon
                 className={

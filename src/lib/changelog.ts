@@ -22,6 +22,15 @@ export type ChangelogEntry = {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    date: "2026-09-04",
+    title: "Přepínání organizací z otevřeného projektu",
+    tags: ["Organizace"],
+    items: [
+      "Z otevřeného projektu můžete přepnout organizaci rovnou. Otevře se přehled projektů vybrané organizace.",
+      "Otevřené projekty v dalších kartách prohlížeče už nevracejí výběr organizace zpět.",
+    ],
+  },
+  {
     date: "2026-08-20",
     title: "E-mail jen tomu, koho se to týká",
     tags: ["Upozornění"],

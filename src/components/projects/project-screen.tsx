@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useState } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { useQuery } from "convex/react";
@@ -16,14 +16,14 @@ import { TaskDrawer } from "@/components/tasks/task-drawer";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
-import { useCurrentOrganization } from "@/hooks/use-current-organization";
+import { useProjectOrganization } from "@/hooks/use-project-organization";
 
 /** The open task lives in the address, so a task is still a link. */
 const TASK_PARAM = "ukol";
 
 export function ProjectScreen({ projectId }: { projectId: string }) {
   const project = useQuery(api.projects.get, { projectId });
-  const { organizationId, setOrganizationId } = useCurrentOrganization();
+  useProjectOrganization(project?.organizationId);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const searchParams = useSearchParams();
   // Read once: from here on the drawer is opened by clicking a card, and the
@@ -48,15 +48,6 @@ export function ProjectScreen({ projectId }: { projectId: string }) {
     setOpenTaskId(null);
     window.history.replaceState(null, "", window.location.pathname);
   }, []);
-
-  // Opening a project link from another organization (an accepted invite, a
-  // bookmark) switches the shell over instead of showing a mismatched sidebar.
-  const projectOrganizationId = project?.organizationId;
-  useEffect(() => {
-    if (projectOrganizationId && projectOrganizationId !== organizationId) {
-      setOrganizationId(projectOrganizationId);
-    }
-  }, [projectOrganizationId, organizationId, setOrganizationId]);
 
   if (project === undefined) {
     return (

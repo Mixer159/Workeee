@@ -692,6 +692,18 @@ server returned a membership for, so a stale id falls back to the first one.
 `storeOrganizationId` is exported separately for the public join page, which
 lives outside the provider.
 
+`useProjectOrganization` adopts the organization from an opened project link.
+It remembers the stored selection when the project mounts and after its own
+write. A later selection, including one from another browser tab, takes the
+project page back to `/` without overwriting that choice. This also applies
+while the project query is loading. Project pages must never continuously
+write their organization back in response to selection changes, because that
+blocks the switcher and makes tabs with different projects fight over storage.
+The mobile organization switcher closes the navigation after a selection.
+Project invites opened inside the app navigate first; the destination project
+selects its organization so the previous page cannot interrupt that navigation.
+React hook regression tests use `happy-dom`; backend tests retain `edge-runtime`.
+
 ## The task detail (Phase 4, reshaped in Phases 6 and 17)
 
 The same `TaskDetailPanel` opens in two places. Clicking a board card uses the
