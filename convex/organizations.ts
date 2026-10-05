@@ -11,6 +11,7 @@ import {
   requireOrgManager,
 } from "./lib/access";
 import { getAuthUserId } from "./lib/auth";
+import { isBot, isBotUser } from "./lib/bots";
 import { getPresence } from "./lib/presence";
 import { isSameName, normalizeName } from "./lib/validation";
 import { organizationRoles } from "./schema";
@@ -241,12 +242,18 @@ export const members = query({
             .filter((project) => project !== null)
             .map((project) => ({ _id: project._id, name: project.name }));
         }
+        // A bot carries its owner's name instead of an e-mail: "whose is
+        // this?" is the question a colleague has about it.
+        const owner =
+          isBot(user) && user.ownerId ? await ctx.db.get(user.ownerId) : null;
         return {
           membershipId: membership._id,
           userId: membership.userId,
           name: user.name,
           email: user.email,
           image: user.image,
+          isBot: isBot(user),
+          ownerName: owner?.name ?? null,
           role: membership.role,
           access: membership.access,
           projects,
@@ -285,6 +292,11 @@ export const updateMemberRole = mutation({
 
     if (target.role === args.role) {
       return;
+    }
+    // A bot works as a `member` and nothing else: it must never manage the
+    // organization it was added to, and an owner bot could not be removed.
+    if (await isBotUser(ctx, args.userId)) {
+      throw new Error("Botovi nejde měnit roli.");
     }
     if (actor.role !== "owner" && (target.role === "owner" || args.role === "owner")) {
       throw new Error("Roli vlastníka může měnit jen vlastník.");

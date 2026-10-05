@@ -105,6 +105,18 @@ export const notificationKinds = v.union(
   v.literal("comment_mention"),
 );
 
+/**
+ * What a `users` row stands for. **Absent means `human`** — every row written
+ * by the Better Auth trigger — so the existing table needed no backfill.
+ *
+ * A `bot` is a first-class member with its own `Id<"users">`: it can be a
+ * řešitel, write comments and hold memberships like anybody else. It never
+ * has a Better Auth account and never a session; it acts only through the MCP
+ * endpoint, with an API token minted by the human in `ownerId`. See
+ * `convex/lib/bots.ts`.
+ */
+export const userKinds = v.union(v.literal("human"), v.literal("bot"));
+
 /** Audited actions. The client never supplies one of these directly. */
 export const activityTypes = v.union(
   v.literal("organization_created"),
@@ -114,6 +126,7 @@ export const activityTypes = v.union(
   v.literal("invite_revoked"),
   v.literal("member_role_changed"),
   v.literal("member_removed"),
+  v.literal("bot_added"),
   v.literal("project_created"),
   v.literal("project_renamed"),
   v.literal("project_archived"),
@@ -133,14 +146,46 @@ export const activityTypes = v.union(
  */
 export default defineSchema({
   users: defineTable({
-    // Better Auth user id (`_id` of the component's user document).
+    // Better Auth user id (`_id` of the component's user document). For a bot
+    // it is a synthetic `bot:<random>` that no session can ever carry.
     authId: v.string(),
     name: v.string(),
+    // Empty for a bot: it has no inbox, and nothing may ever mail one.
     email: v.string(),
+    // For a bot, the avatar URL it pushed through `sync_bot_identity`.
     image: v.optional(v.string()),
+    kind: v.optional(userKinds),
+    /** Bots only: the human who minted the token the bot connects with. */
+    ownerId: v.optional(v.id("users")),
+    /** Bots only: the last `sync_bot_identity`. */
+    lastSyncedAt: v.optional(v.number()),
   })
     .index("by_auth_id", ["authId"])
-    .index("by_email", ["email"]),
+    .index("by_email", ["email"])
+    .index("by_owner", ["ownerId"]),
+
+  /**
+   * Personal API tokens. The secret is shown once, at mint time, and only its
+   * SHA-256 is stored — a database dump hands out no working credential.
+   * `tokenPrefix` is the first few characters, kept so a list can tell two
+   * tokens apart without being able to reconstruct either.
+   *
+   * A token is bound to **one bot** by its first `sync_bot_identity`
+   * (`botUserId`); from then on every MCP call made with it acts as that bot.
+   * `revokedAt` present = dead. The row is kept so the list can say so.
+   */
+  apiTokens: defineTable({
+    userId: v.id("users"),
+    name: v.string(),
+    tokenHash: v.string(),
+    tokenPrefix: v.string(),
+    botUserId: v.optional(v.id("users")),
+    lastUsedAt: v.optional(v.number()),
+    revokedAt: v.optional(v.number()),
+  })
+    .index("by_user", ["userId"])
+    .index("by_token_hash", ["tokenHash"])
+    .index("by_bot", ["botUserId"]),
 
   organizations: defineTable({
     name: v.string(),

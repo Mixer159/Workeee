@@ -1,5 +1,6 @@
 import type { Doc, Id } from "../_generated/dataModel";
 import type { MutationCtx } from "../_generated/server";
+import { isBotUser } from "./bots";
 
 /**
  * The in-app notification feed — the second channel next to the e-mail queue in
@@ -58,7 +59,9 @@ export async function pushNotificationItem(
   const category = categoryOf(kind);
 
   for (const userId of recipients) {
-    if (userId === actorId) {
+    // A bot has no bell: nothing would ever read the row, so it would grow
+    // forever with nobody to mark it read.
+    if (userId === actorId || (await isBotUser(ctx, userId))) {
       continue;
     }
 
