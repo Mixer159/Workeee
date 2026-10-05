@@ -21,13 +21,19 @@ export async function getUserByAuthId(
  *
  * `identity.subject` is the Better Auth user id, so this is a single indexed
  * read — no round trip into the auth component.
+ *
+ * A bot row is never a session user. Its synthetic `authId` cannot be a
+ * Better Auth id in the first place; refusing the kind as well means that
+ * stays true even if somebody one day writes a bot with a careless id. Bots
+ * act through `convex/lib/bots.ts`, never through here.
  */
 export async function getAuthUser(ctx: Ctx): Promise<Doc<"users"> | null> {
   const identity = await ctx.auth.getUserIdentity();
   if (!identity) {
     return null;
   }
-  return await getUserByAuthId(ctx, identity.subject);
+  const user = await getUserByAuthId(ctx, identity.subject);
+  return user && user.kind !== "bot" ? user : null;
 }
 
 /**

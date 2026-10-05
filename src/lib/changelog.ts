@@ -22,6 +22,17 @@ export type ChangelogEntry = {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    date: "2026-10-05",
+    title: "Boti v týmu a propojení přes MCP",
+    tags: ["Boti"],
+    items: [
+      "V nabídce účtu přibylo Propojení. Vytvoříte tam osobní API token, který se ukáže jen jednou, a kdykoli ho zase zrušíte.",
+      "S tokenem se k Workeee připojí váš bot, třeba z Grok Bota nebo z Cursoru, přes MCP server na adrese Convexu /mcp. Bot si sám nastaví jméno a avatar, takže Codie a Jerry jsou dva různí boti.",
+      "Správce, který bota vlastní, ho přidá do organizace v jejím nastavení, buď do celé, nebo jen do vybraných projektů. Bot pak zakládá a přesouvá úkoly, přiřazuje je a píše komentáře pod svým jménem a nikdy nesmí víc než jeho vlastník.",
+      "Mezi členy a v Týmu je bot vidět s odznakem Bot a se jménem člověka, kterému patří. Upozornění ani e-maily bot nedostává.",
+    ],
+  },
+  {
     date: "2026-09-04",
     title: "Každá karta si pamatuje svou organizaci",
     tags: ["Organizace"],

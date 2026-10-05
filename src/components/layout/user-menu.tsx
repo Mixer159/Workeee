@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import {
   ChevronsUpDownIcon,
   LogOutIcon,
+  PlugIcon,
   SettingsIcon,
 } from "lucide-react";
 import { ThemePicker } from "@/components/layout/theme-picker";
@@ -84,6 +85,12 @@ export function UserMenu() {
           <Link href="/nastaveni/upozorneni">
             <SettingsIcon />
             Nastavení upozornění
+          </Link>
+        </DropdownMenuItem>
+        <DropdownMenuItem asChild>
+          <Link href="/nastaveni/propojeni">
+            <PlugIcon />
+            Propojení
           </Link>
         </DropdownMenuItem>
         <DropdownMenuSeparator />

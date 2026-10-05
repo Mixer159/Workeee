@@ -16,6 +16,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+import { BotAvatar } from "@/components/connections/bot-avatar";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -107,6 +108,9 @@ export function MembersTable({
             canManage &&
             !isLastOwner &&
             (viewerRole === "owner" || member.role !== "owner");
+          // A bot stays a `member` — the server refuses anything else — so it
+          // gets no select, only the remove button.
+          const canChangeRole = canAct && !member.isBot;
           const roleOptions =
             viewerRole === "owner"
               ? ORGANIZATION_ROLE_OPTIONS
@@ -127,16 +131,27 @@ export function MembersTable({
               key={member.membershipId}
               className="flex flex-wrap items-center gap-x-3 gap-y-2 py-3"
             >
-              <Avatar className="size-8">
-                {member.image ? <AvatarImage src={member.image} alt="" /> : null}
-                <AvatarFallback>
-                  {userInitials(member.name, member.email)}
-                </AvatarFallback>
-              </Avatar>
+              {member.isBot ? (
+                <BotAvatar name={member.name} image={member.image} />
+              ) : (
+                <Avatar className="size-8">
+                  {member.image ? <AvatarImage src={member.image} alt="" /> : null}
+                  <AvatarFallback>
+                    {userInitials(member.name, member.email)}
+                  </AvatarFallback>
+                </Avatar>
+              )}
               <div className="flex min-w-0 flex-1 flex-col">
-                <span className="truncate text-sm font-medium">{member.name}</span>
+                <span className="flex min-w-0 items-center gap-1.5">
+                  <span className="truncate text-sm font-medium">{member.name}</span>
+                  {member.isBot ? <Badge variant="secondary">Bot</Badge> : null}
+                </span>
                 <span className="truncate text-xs text-muted-foreground">
-                  {member.email}
+                  {member.isBot
+                    ? member.ownerName
+                      ? `Bot uživatele ${member.ownerName}`
+                      : "Bot bez vlastníka"
+                    : member.email}
                 </span>
                 {presence ? (
                   <span className="flex min-w-0 items-center gap-1.5 text-xs text-muted-foreground">
@@ -166,7 +181,7 @@ export function MembersTable({
                 ) : null}
               </div>
 
-              {canAct ? (
+              {canChangeRole ? (
                 <Select
                   value={member.role}
                   onValueChange={(value) =>

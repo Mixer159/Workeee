@@ -10,6 +10,7 @@ import { api } from "@convex/_generated/api";
 import { NameForm } from "@/components/forms/name-form";
 import { InvitesPanel } from "@/components/invites/invites-panel";
 import { EmptyState } from "@/components/layout/empty-state";
+import { AddBotButton } from "@/components/organizations/add-bot-dialog";
 import { DeleteOrganizationDialog } from "@/components/organizations/delete-organization-dialog";
 import { MembersTable } from "@/components/organizations/members-table";
 import { Button } from "@/components/ui/button";
@@ -127,11 +128,15 @@ export default function OrganizationSettingsPage() {
             „Jen vybrané projekty“ platí pro ty, které jsou vypsané u člena.
           </CardDescription>
         </CardHeader>
-        <CardContent>
+        <CardContent className="flex flex-col gap-4">
           <MembersTable
             organizationId={organizationId}
             canManage
             viewerRole={organization.role}
+          />
+          <AddBotButton
+            organizationId={organizationId}
+            viewerAccess={organization.access}
           />
         </CardContent>
       </Card>

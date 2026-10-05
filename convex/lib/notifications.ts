@@ -2,6 +2,7 @@ import { internal } from "../_generated/api";
 import type { Doc, Id } from "../_generated/dataModel";
 import type { MutationCtx, QueryCtx } from "../_generated/server";
 import { getProjectAccess } from "./access";
+import { isBotUser } from "./bots";
 import { commentBodyText, parseCommentBody } from "./commentBody";
 import {
   categoryOf,
@@ -255,6 +256,10 @@ async function enqueue(
 
   for (const userId of recipients) {
     if (userId === actorId) {
+      continue;
+    }
+    // A bot has no inbox — its `email` is empty on purpose.
+    if (await isBotUser(ctx, userId)) {
       continue;
     }
     if (!(await wantsTaskEmails(ctx, userId))) {

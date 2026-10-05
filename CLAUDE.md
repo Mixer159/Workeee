@@ -127,8 +127,12 @@ convex/
   auth.ts                # Better Auth instance + component client + user triggers
   auth.config.ts         # Convex auth provider config
   convex.config.ts       # component registration
-  http.ts                # Better Auth routes on *.convex.site
+  http.ts                # Better Auth routes + `/mcp` on *.convex.site
   users.ts               # users.currentUser
+  apiTokens.ts           # list / create (action, secret shown once) / revoke
+  bots.ts                # listMine / addToOrganization / syncIdentity (internal)
+  mcp.ts                 # the MCP HTTP actions: POST / GET / DELETE / OPTIONS
+  mcpTools.ts            # internal: one function per MCP tool, by token hash
   organizations.ts       # create / listForUser / get / rename / remove /
                          # members / roles
   organizationPurge.ts   # internal: empty a deleted organization, batch by batch
@@ -164,14 +168,21 @@ convex/
   taskSeen.test.ts       # what counts as unseen, and that it dies with the task
   presence.test.ts       # the heartbeat, the throttle, what counts as activity
   workspace.test.ts      # cross-org order + limited-member visibility
+  bots.test.ts           # tokens, identity sync, bot ∩ owner access, no mail
   lib/auth.ts            # getAuthUserId / getAuthUser / getUserByAuthId
   lib/access.ts          # the permission matrix — org + project access
   lib/activity.ts        # logActivity (audit trail)
+  lib/apiTokens.ts       # token format, SHA-256, Bearer parsing, live lookup
+  lib/bots.ts            # the bot actor: token → bot, bot ∩ owner access
   lib/brevo.ts           # the only network call in the app
+  lib/commentActions.ts  # createComment / validateCommentBody (UI + bot)
   lib/commentBody.ts     # the comment segment codec (shared with the client)
   lib/commentReactions.ts # bounded reads and reaction deletion helpers
   lib/files.ts           # blob validation, caps, deletion
   lib/invites.ts         # expiry presets, code generation, status
+  lib/mcp/server.ts      # JSON-RPC / MCP dispatch, pure (+ server.test.ts)
+  lib/mcp/tools.ts       # the tool catalog + argument checking, pure
+  lib/mcp/taskText.ts    # a BlockNote body as plain text for a bot
   lib/notificationEmail.ts # buildTaskDigest — subject + HTML + text, pure
   lib/passwordResetEmail.ts # buildPasswordResetEmail — the reset link mail, pure
   lib/notificationItems.ts # the in-app feed writer + the category/rank rules
@@ -182,6 +193,8 @@ convex/
   lib/projectMembers.ts  # who can open a project (assignees + mentions)
   lib/storage.ts         # global one-blob/one-owner invariant + safe deletion
   lib/svg.ts             # the icon SVG allowlist + `data:` URI (never a blob)
+  lib/taskActions.ts     # createTask / renameTask / assignTask / moveTask —
+                         # the board's writes for any actor (UI + bot)
   lib/tasks.ts           # getTaskAccess / requireTaskAccess / touchTask /
                          # deleteTaskChildren (body + files + comments +
                          # notifications + read state)
@@ -215,6 +228,7 @@ src/
     (dashboard)/projekt/[id]/ukol/[taskId]  # redirect, keeps older links alive
     (dashboard)/nastaveni/organizace    # organization settings, managers only
     (dashboard)/nastaveni/upozorneni    # personal notification switch, everybody
+    (dashboard)/nastaveni/propojeni     # personal API tokens + my bots, everybody
     (dashboard)/upozorneni              # the in-app notification feed
     (dashboard)/tym                     # colleagues: who is online, last visit,
                                         # last activity — everybody
@@ -223,6 +237,8 @@ src/
   components/
     ui/                  # shadcn primitives, ours to edit
     brand/               # mark (the glyph, in currentColor, both surfaces)
+    connections/         # api-tokens-panel, new-token-dialog, my-bots-list,
+                         # bot-avatar
     auth/                # auth-guard, sign-in-form, sign-up-form,
                          # forgot-password-form, reset-password-form
     forms/               # name-form (shared rename control)
@@ -238,7 +254,7 @@ src/
     notifications/       # notification-settings-form, notification-feed,
                          # unread-badge
     organizations/       # onboarding, create/join forms + dialogs, members-table,
-                         # delete-organization-dialog
+                         # delete-organization-dialog, add-bot-dialog
     projects/            # project-screen, project-icon, project-icon-picker,
                          # new-project-button, create/settings dialogs
     providers/           # convex-client-provider, organization-provider
@@ -256,7 +272,7 @@ src/
                          # use-presence-heartbeat
   lib/                   # auth-client, auth-redirect, auth-server, auth-errors,
                          # blocknote-cs, changelog, clipboard, comment-draft,
-                         # current-organization, format, invites, og,
+                         # current-organization, format, invites, mcp, og,
                          # organization, presence, project-emojis, project-icons,
                          # repo, save-state, shots, task-status-colors, tasks, theme,
                          # upload, user, utils, workspace-rail
@@ -323,10 +339,19 @@ users: defineTable({
   name: v.string(),
   email: v.string(),
   image: v.optional(v.string()),
+  kind: v.optional(userKinds),          // absent = "human"; "bot" — Phase 24
+  ownerId: v.optional(v.id("users")),   // bots only
+  lastSyncedAt: v.optional(v.number()), // bots only
 })
   .index("by_auth_id", ["authId"])
   .index("by_email", ["email"])
+  .index("by_owner", ["ownerId"])
 ```
+
+The same table also holds **bots** (see **Boti a MCP**). They are written by
+`bots.syncIdentity`, never by the trigger, carry a synthetic
+`authId: "bot:<uuid>"` and an empty `email`, and `getAuthUser` refuses any
+row with `kind: "bot"`, so no session can ever resolve to one.
 
 ### The auth helper
 
@@ -428,11 +453,16 @@ taskSeen             userId, taskId, projectId, organizationId, lastSeenAt
                      by_user_task · by_user_project · by_task
 userPresence         userId, lastSeenAt, lastActiveAt?   — one row per user,
                      global; a missing row means "never seen"       by_user
+apiTokens            userId, name, tokenHash, tokenPrefix, botUserId?,
+                     lastUsedAt?, revokedAt?   — only the SHA-256 is stored;
+                     created = `_creationTime`
+                                           by_user · by_token_hash · by_bot
 ```
 
 Shared validators live in `convex/schema.ts`: `organizationRoles`,
 `memberAccessLevels`, `inviteExpiryPresets`, `taskStatusColors`,
-`taskStatusKinds`, `fileContexts`, `activityTypes`, `notificationKinds`.
+`taskStatusKinds`, `fileContexts`, `userKinds`, `activityTypes`,
+`notificationKinds`.
 
 ### Invite lifecycle
 
@@ -453,7 +483,7 @@ Shared validators live in `convex/schema.ts`: `organizationRoles`,
   settings list only that project's invites. A limited admin may create, list
   and revoke project invites only for projects they can actually open.
 - Audited actions (`activityLogs`): organization created/renamed, invite
-  created/accepted/revoked, member role changed/removed, project
+  created/accepted/revoked, member role changed/removed, bot added, project
   created/renamed/archived/restored, task created / status changed / deleted.
   The `type` union is never taken from client arguments.
 
@@ -1292,6 +1322,83 @@ The copy is verbless, like the digest: `Online`, `Naposledy online před 5 min`,
 The green dot is the one round thing in the row, and it means exactly one
 thing: online now.
 
+## Boti a MCP (Phase 24)
+
+A bot (Codie, Jerry, …) is a **visible member of the team**, not a silent
+"act as the human". It is a `users` row with `kind: "bot"` and an `ownerId`,
+it holds ordinary `organizationMembers` / `projectMembers` rows, it can be a
+řešitel, it writes comments under its own name, and the members list (in the
+organization settings and on `/tym`) shows it with a **Bot** badge and
+"Bot uživatele <owner>" where a person shows an e-mail.
+
+### How a bot connects
+
+1. The human mints a **personal API token** at **Nastavení → Propojení**
+   (`/nastaveni/propojeni`, the user menu). `apiTokens.create` is an action:
+   the token is `wrk_` + 32 random bytes base64url, **shown once**, and only
+   its SHA-256 (`tokenHash`) and a display prefix are stored
+   (`convex/lib/apiTokens.ts`). Max 20 live tokens per person; revoking keeps
+   the row so the list can say so.
+2. The bot's MCP client points at **`https://<deployment>.convex.site/mcp`**
+   (`NEXT_PUBLIC_CONVEX_SITE_URL` + `/mcp`, `src/lib/mcp.ts`, which also
+   renders a ready `mcp.json` block) with the header
+   **`Authorization: Bearer <token>`**.
+3. The bot calls **`sync_bot_identity({ name, avatarUrl? })`**. Workeee cannot
+   read a Grok Bot profile, so the bot pushes its own name and `https://`
+   avatar. The first call creates the bot (owned by the token's human, max 10
+   per owner) and binds the token to it; a later call updates it; a new token
+   synced with an existing bot's name rebinds to that bot, which is how a
+   revoked token is replaced without losing memberships. Every other tool
+   refuses until this has happened.
+4. A manager who **owns** the bot adds it in the organization settings
+   ("Přidat bota", `bots.addToOrganization`) — to the whole organization or to
+   chosen projects. It always joins as `member`, a `limited` manager can only
+   hand it projects they can open, and its role can never be changed
+   (`organizations.updateMemberRole` refuses a bot). Audited as `bot_added`.
+
+### The access rule: bot ∩ owner
+
+`convex/lib/bots.ts` is the only place a token becomes an actor. Every call
+re-resolves token → live owner → bound bot (still owned by that owner), then
+checks the **owner's** access to the project and runs the shared action
+(`convex/lib/taskActions.ts`, `convex/lib/commentActions.ts` — the same code
+the UI mutations call) **with the bot's id**, so the bot's own membership goes
+through `convex/lib/access.ts` too. A bot without a membership sees nothing
+even when its owner sees everything, and a bot whose owner loses access loses
+it in the same moment. Nothing is ever wider than what the owner may do.
+
+A bot is never a session user: its `authId` is a synthetic `bot:<uuid>`, its
+`email` is empty, and `getAuthUser` refuses `kind: "bot"`. It is never
+notified either — `enqueue` and `pushNotificationItem` skip bots, so it gets
+neither e-mail nor feed rows.
+
+### The endpoint
+
+`convex/mcp.ts` (routes in `convex/http.ts`): MCP Streamable HTTP, stateless,
+one JSON response per POST, CORS `*` (the credential is a header, not a
+cookie). A missing or bad token is a `401` with a **plain** `Bearer` challenge.
+**There are deliberately no `/.well-known/oauth-*` routes and no
+`resource_metadata`** — an MCP client (Cursor's AddMcpServer included) that
+discovers authorization-server metadata switches to OAuth and stops sending the
+Bearer header it was configured with. GET without `text/event-stream` answers a
+short description; with it, and DELETE, answer `405`.
+
+The protocol layer is pure (`convex/lib/mcp/server.ts`, tested in
+`server.test.ts`); the catalog and argument checking are
+`convex/lib/mcp/tools.ts`; each tool is one internal function in
+`convex/mcpTools.ts` (plus `bots.syncIdentity`). Tools:
+
+`sync_bot_identity` · `list_organizations` · `list_projects` · `list_tasks` ·
+`get_task` · `list_members` · `create_task` · `update_task` · `move_task` ·
+`assign_task` · `list_comments` · `add_comment` · `search`
+
+Ids arrive from a model as strings and go through `normalizeId`, so a made-up
+id is a readable sentence rather than a validator error. Every tool rethrows
+its Czech message as a `ConvexError` — a plain `Error` crossing `runMutation`
+would reach the bot as "Akce se nepovedla.". `add_comment` is plain text:
+`@Jméno` stays text and notifies nobody. `search` matches titles over the 500
+most recently updated tasks per project (`by_project_updated_at`).
+
 ## Routes
 
 | Route | Access | What it is |
@@ -1305,6 +1412,7 @@ thing: online now.
 | `/projekt/[id]/ukol/[taskId]` | project members | Redirect to `/projekt/[id]?ukol=<taskId>` — the detail is a drawer now |
 | `/nastaveni/organizace` | org managers | Rename, members table, organization invites; the owner also gets the delete card |
 | `/nastaveni/upozorneni` | authenticated | One switch: e-mail digests of assignments, mentions and comments on tasks you are řešitel of. Personal, so no manager guard — reached from the user menu ("Nastavení upozornění") |
+| `/nastaveni/propojeni` | authenticated | Personal API tokens (minted once, revocable) and the bots they connected, with the MCP URL and a ready client config. Reached from the user menu ("Propojení") |
 | `/tym` | authenticated | The colleagues of the current organization: every member with role, whether they are online right now, when they were last in the app and when they last did something. The same list managers see in the organization settings, without the controls. Reached from the rail's "Tým" link |
 | `/upozorneni` | authenticated | The in-app notification feed: new tasks, assignments, mentions and comments, unread first by nature. Reached from the rail's "Upozornění" link, which carries the unread count; a row links into the task's drawer, and opening it is what marks it read |
 | `/join/[code]` | **public** | Invite summary; unauthenticated visitors go to `/registrace?invite=<code>` or `/prihlaseni?invite=<code>` and come back here to accept |
@@ -1673,7 +1781,7 @@ Day-one decisions:
    JetBrains Mono for what a machine reads back.
 5. **Locale:** Czech UI, English code.
 6. **Audited actions**: organization created/renamed, invite
-   created/accepted/revoked, member role changed/removed, project
+   created/accepted/revoked, member role changed/removed, bot added, project
    created/renamed/archived/restored, task created / status changed / deleted.
 
 ## Phase roadmap
@@ -1833,6 +1941,14 @@ Day-one decisions:
   they are řešitel of — while a new task stays in the in-app feed, on the task
   card and on the project row. The feed is therefore the wider of the two
   channels now, not a copy of the digest.
+- **Phase 24 (done).** Bots as team members over MCP: personal API tokens
+  (hash-only, shown once) at `/nastaveni/propojeni`, a stateless Bearer-only
+  MCP endpoint at `<deployment>.convex.site/mcp` with thirteen tools, bots that
+  push their own name and avatar through `sync_bot_identity`, are added to an
+  organization by the manager who owns them, show with a Bot badge and their
+  owner's name, act with bot ∩ owner access and are never notified. The board
+  and comment writes moved into shared actions so the UI and a bot run the
+  same code. See **Boti a MCP**.
 - **Later.** List view, due dates, filters in the URL, activity timeline,
   audit log surface.
 
