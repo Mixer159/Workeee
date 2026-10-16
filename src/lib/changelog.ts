@@ -22,6 +22,16 @@ export type ChangelogEntry = {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    date: "2026-10-17",
+    title: "Webhook pro bota",
+    tags: ["Boti"],
+    items: [
+      "Vlastník organizace nastaví u každého bota v seznamu členů webhook: adresu https://, klíč a případně vlastní hlavičku. Když někdo bota zmíní v komentáři nebo mu přiřadí úkol, Workeee na tu adresu pošle zprávu, takže bot nemusí čekat, až se sám zeptá.",
+      "Uložený klíč už nikde neuvidíte. Když ho necháte prázdný, zůstane platit ten původní. Bot s nastaveným webhookem má v seznamu členů štítek Webhook.",
+      "Při zmiňování v komentáři jsou boti vidět s odznakem Bot.",
+    ],
+  },
+  {
     date: "2026-10-05",
     title: "Boti v týmu a propojení přes MCP",
     tags: ["Boti"],

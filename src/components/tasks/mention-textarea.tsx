@@ -1,7 +1,9 @@
 "use client";
 
 import { useLayoutEffect, useRef, useState } from "react";
+import { BotAvatar } from "@/components/connections/bot-avatar";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { Badge } from "@/components/ui/badge";
 import {
   mentionQueryAt,
   mentionRanges,
@@ -16,6 +18,8 @@ export type MentionMember = {
   name: string;
   email: string;
   image?: string;
+  /** Bots are mentionable like anybody; the picker says which ones they are. */
+  isBot?: boolean;
 };
 
 /** How many people the picker offers at once. */
@@ -221,16 +225,25 @@ export function MentionTextarea({
                   index === active ? "bg-accent" : "bg-transparent",
                 )}
               >
-                <Avatar size="sm">
-                  <AvatarImage src={member.image} alt="" />
-                  <AvatarFallback>{userInitials(member.name)}</AvatarFallback>
-                </Avatar>
+                {member.isBot ? (
+                  <BotAvatar name={member.name} image={member.image} size="sm" />
+                ) : (
+                  <Avatar size="sm">
+                    <AvatarImage src={member.image} alt="" />
+                    <AvatarFallback>{userInitials(member.name)}</AvatarFallback>
+                  </Avatar>
+                )}
                 <span className="min-w-0 flex-1 truncate text-sm">
                   {member.name}
                 </span>
-                <span className="min-w-0 shrink truncate text-xs text-muted-foreground">
-                  {member.email}
-                </span>
+                {/* A bot has no e-mail to show; the badge takes its place. */}
+                {member.isBot ? (
+                  <Badge variant="secondary">Bot</Badge>
+                ) : (
+                  <span className="min-w-0 shrink truncate text-xs text-muted-foreground">
+                    {member.email}
+                  </span>
+                )}
               </button>
             </li>
           ))}

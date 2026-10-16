@@ -259,7 +259,8 @@ src/
     notifications/       # notification-settings-form, notification-feed,
                          # unread-badge
     organizations/       # onboarding, create/join forms + dialogs, members-table,
-                         # delete-organization-dialog, add-bot-dialog
+                         # delete-organization-dialog, add-bot-dialog,
+                         # bot-webhook-dialog
     projects/            # project-screen, project-icon, project-icon-picker,
                          # new-project-button, create/settings dialogs
     providers/           # convex-client-provider, organization-provider
@@ -1402,6 +1403,18 @@ task handed to it (`assigned`). Bots are ordinary mention targets — they are i
   leaves the organization is the owner's call — and the bot must be a member.
   Removing the bot from the organization, or deleting the organization,
   deletes the row.
+- **UI:** in the members list of `/nastaveni/organizace`, and only for the
+  organization **owner** (`MembersTable` skips `botWebhooks.list` for anybody
+  else), every bot row gets a webhook button and, when one is set, an outline
+  "Webhook" badge beside "Bot". `BotWebhookDialog`
+  (`src/components/organizations/bot-webhook-dialog.tsx`) has URL, Klíč (a
+  password field that always starts empty; with `hasSecret` its placeholder
+  says "uložen — ponechte prázdné" and an empty value is sent as *no*
+  `secret`, i.e. keep) and "Vlastní hlavička", plus Uložit and Odebrat
+  (`clear`). Nothing in the client ever holds the stored secret. `/tym` uses
+  the same table with `canManage={false}` and shows none of it. The comment
+  `@`-picker renders bots with `BotAvatar` and the Bot badge in place of the
+  empty e-mail (`MentionMember.isBot`).
 - **Trigger:** `createComment` and `assignTask` (`convex/lib/commentActions.ts`,
   `convex/lib/taskActions.ts`) — so the UI, `assign_task` and `update_task`
   all fire it. Only a real handover; **never when the actor is the bot
@@ -1461,7 +1474,7 @@ most recently updated tasks per project (`by_project_updated_at`).
 | `/prehled` | — | Redirect to `/` — the dashboard lived here briefly while the landing page held the base URL |
 | `/projekt/[id]` | project members | Project header + settings dialog for managers + the Kanban board. `?ukol=<taskId>` opens that task in the drawer on the right: title, status, assignee, meta, block-editor description, Přílohy, Komentáře |
 | `/projekt/[id]/ukol/[taskId]` | project members | Redirect to `/projekt/[id]?ukol=<taskId>` — the detail is a drawer now |
-| `/nastaveni/organizace` | org managers | Rename, members table, organization invites; the owner also gets the delete card |
+| `/nastaveni/organizace` | org managers | Rename, members table, organization invites; the owner also gets each bot's webhook and the delete card |
 | `/nastaveni/upozorneni` | authenticated | One switch: e-mail digests of assignments, mentions and comments on tasks you are řešitel of. Personal, so no manager guard — reached from the user menu ("Nastavení upozornění") |
 | `/nastaveni/propojeni` | authenticated | Personal API tokens (minted once, revocable) and the bots they connected, with the MCP URL and a ready client config. Reached from the user menu ("Propojení") |
 | `/tym` | authenticated | The colleagues of the current organization: every member with role, whether they are online right now, when they were last in the app and when they last did something. The same list managers see in the organization settings, without the controls. Reached from the rail's "Tým" link |
@@ -2000,11 +2013,12 @@ Day-one decisions:
   owner's name, act with bot ∩ owner access and are never notified. The board
   and comment writes moved into shared actions so the UI and a bot run the
   same code. See **Boti a MCP**.
-- **Phase 25 (in progress).** Bot webhooks, backend first: an owner-only
-  per-bot, per-organization webhook (`botWebhooks`) that receives a POST when a
-  comment mentions the bot or a task is assigned to it, re-authorized at send
-  time, retried through the scheduler, secret never returned. The settings UI
-  is the next step. See **Boti a MCP → Webhooks**.
+- **Phase 25 (done).** Bot webhooks: an owner-only per-bot, per-organization
+  webhook (`botWebhooks`) that receives a POST when a comment mentions the bot
+  or a task is assigned to it, re-authorized at send time, retried through the
+  scheduler, secret never returned. The owner configures it from the bot's row
+  in the members list, which carries a "Webhook" badge once it is set, and the
+  mention picker marks bots. See **Boti a MCP → Webhooks**.
 - **Later.** List view, due dates, filters in the URL, activity timeline,
   audit log surface.
 

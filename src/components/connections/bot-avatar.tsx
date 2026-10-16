@@ -9,14 +9,16 @@ import { userInitials } from "@/lib/user";
 export function BotAvatar({
   name,
   image,
-  className = "size-8",
+  size,
+  className = size ? undefined : "size-8",
 }: {
   name: string;
   image: string | undefined;
+  size?: "default" | "sm" | "lg";
   className?: string;
 }) {
   return (
-    <Avatar className={className}>
+    <Avatar size={size} className={className}>
       {image ? <AvatarImage src={image} alt="" referrerPolicy="no-referrer" /> : null}
       <AvatarFallback>{userInitials(name)}</AvatarFallback>
     </Avatar>
