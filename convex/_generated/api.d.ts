@@ -10,6 +10,7 @@
 
 import type * as apiTokens from "../apiTokens.js";
 import type * as auth from "../auth.js";
+import type * as botWebhooks from "../botWebhooks.js";
 import type * as bots from "../bots.js";
 import type * as commentReactions from "../commentReactions.js";
 import type * as comments from "../comments.js";
@@ -22,6 +23,7 @@ import type * as lib_access from "../lib/access.js";
 import type * as lib_activity from "../lib/activity.js";
 import type * as lib_apiTokens from "../lib/apiTokens.js";
 import type * as lib_auth from "../lib/auth.js";
+import type * as lib_botWebhooks from "../lib/botWebhooks.js";
 import type * as lib_bots from "../lib/bots.js";
 import type * as lib_brevo from "../lib/brevo.js";
 import type * as lib_commentActions from "../lib/commentActions.js";
@@ -48,6 +50,7 @@ import type * as lib_taskSeen from "../lib/taskSeen.js";
 import type * as lib_taskStatuses from "../lib/taskStatuses.js";
 import type * as lib_tasks from "../lib/tasks.js";
 import type * as lib_validation from "../lib/validation.js";
+import type * as lib_webhookHttp from "../lib/webhookHttp.js";
 import type * as mcp from "../mcp.js";
 import type * as mcpTools from "../mcpTools.js";
 import type * as migrations from "../migrations.js";
@@ -73,6 +76,7 @@ import type {
 declare const fullApi: ApiFromModules<{
   apiTokens: typeof apiTokens;
   auth: typeof auth;
+  botWebhooks: typeof botWebhooks;
   bots: typeof bots;
   commentReactions: typeof commentReactions;
   comments: typeof comments;
@@ -85,6 +89,7 @@ declare const fullApi: ApiFromModules<{
   "lib/activity": typeof lib_activity;
   "lib/apiTokens": typeof lib_apiTokens;
   "lib/auth": typeof lib_auth;
+  "lib/botWebhooks": typeof lib_botWebhooks;
   "lib/bots": typeof lib_bots;
   "lib/brevo": typeof lib_brevo;
   "lib/commentActions": typeof lib_commentActions;
@@ -111,6 +116,7 @@ declare const fullApi: ApiFromModules<{
   "lib/taskStatuses": typeof lib_taskStatuses;
   "lib/tasks": typeof lib_tasks;
   "lib/validation": typeof lib_validation;
+  "lib/webhookHttp": typeof lib_webhookHttp;
   mcp: typeof mcp;
   mcpTools: typeof mcpTools;
   migrations: typeof migrations;

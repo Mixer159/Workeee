@@ -187,6 +187,29 @@ export default defineSchema({
     .index("by_token_hash", ["tokenHash"])
     .index("by_bot", ["botUserId"]),
 
+  /**
+   * Where Workeee tells a bot that something was addressed to it — one row per
+   * bot per organization, set by that organization's owner. See
+   * `convex/lib/botWebhooks.ts`.
+   *
+   * A table of its own rather than fields on `users`, because `secret` must
+   * never ride along in a document a query returns: every list that resolves a
+   * person reads `users`, nothing but the delivery reads this. The public query
+   * answers `hasSecret`, never the value.
+   */
+  botWebhooks: defineTable({
+    botUserId: v.id("users"),
+    organizationId: v.id("organizations"),
+    url: v.string(),
+    secret: v.string(),
+    /** Absent = only `Authorization: Bearer <secret>` is sent. */
+    headerName: v.optional(v.string()),
+    updatedBy: v.id("users"),
+    updatedAt: v.number(),
+  })
+    .index("by_bot_org", ["botUserId", "organizationId"])
+    .index("by_org", ["organizationId"]),
+
   organizations: defineTable({
     name: v.string(),
     createdBy: v.id("users"),

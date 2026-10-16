@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useMutation, useQuery } from "convex/react";
-import { Trash2Icon } from "lucide-react";
+import { Trash2Icon, WebhookIcon } from "lucide-react";
 import { toast } from "sonner";
 import { api } from "@convex/_generated/api";
 import type { Id } from "@convex/_generated/dataModel";
@@ -17,6 +17,10 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { BotAvatar } from "@/components/connections/bot-avatar";
+import {
+  BotWebhookDialog,
+  type BotWebhookConfig,
+} from "@/components/organizations/bot-webhook-dialog";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -39,7 +43,7 @@ import {
 import { describePresence } from "@/lib/presence";
 import { userInitials } from "@/lib/user";
 
-type PendingRemoval = { userId: Id<"users">; name: string };
+type MemberRef = { userId: Id<"users">; name: string };
 
 export function MembersTable({
   organizationId,
@@ -53,7 +57,15 @@ export function MembersTable({
   const members = useQuery(api.organizations.members, { organizationId });
   const updateRole = useMutation(api.organizations.updateMemberRole);
   const removeMember = useMutation(api.organizations.removeMember);
-  const [removing, setRemoving] = useState<PendingRemoval | null>(null);
+  const [removing, setRemoving] = useState<MemberRef | null>(null);
+  // Webhooks are the owner's call (what leaves the organization), so nobody
+  // else even asks; the server answers [] to anybody else anyway.
+  const canConfigureWebhooks = canManage && viewerRole === "owner";
+  const webhooks = useQuery(
+    api.botWebhooks.list,
+    canConfigureWebhooks ? { organizationId } : "skip",
+  );
+  const [editingWebhook, setEditingWebhook] = useState<MemberRef | null>(null);
   // 0 is the server snapshot: there is no clock to read "Online" against, so
   // the presence line is left out of the first paint rather than guessed at.
   const now = useNow();
@@ -98,6 +110,17 @@ export function MembersTable({
   }
 
   const ownerCount = members.filter((member) => member.role === "owner").length;
+  const webhookByBot = new Map<Id<"users">, BotWebhookConfig>(
+    (webhooks ?? []).map((row) => [row.botId, row]),
+  );
+  // The webhook button only exists on bot rows; the other rows hold its
+  // column open so the role column stays aligned — but only when there is a
+  // bot to line up with.
+  const showWebhookColumn =
+    canConfigureWebhooks && members.some((member) => member.isBot);
+  const editingConfig = editingWebhook
+    ? (webhookByBot.get(editingWebhook.userId) ?? null)
+    : null;
 
   return (
     <>
@@ -115,6 +138,7 @@ export function MembersTable({
             viewerRole === "owner"
               ? ORGANIZATION_ROLE_OPTIONS
               : ORGANIZATION_ROLE_OPTIONS.filter((role) => role !== "owner");
+          const webhook = member.isBot ? webhookByBot.get(member.userId) : undefined;
           const presence =
             now === 0
               ? null
@@ -145,6 +169,12 @@ export function MembersTable({
                 <span className="flex min-w-0 items-center gap-1.5">
                   <span className="truncate text-sm font-medium">{member.name}</span>
                   {member.isBot ? <Badge variant="secondary">Bot</Badge> : null}
+                  {webhook ? (
+                    <Badge variant="outline" title={webhook.url}>
+                      <WebhookIcon aria-hidden="true" />
+                      Webhook
+                    </Badge>
+                  ) : null}
                 </span>
                 <span className="truncate text-xs text-muted-foreground">
                   {member.isBot
@@ -209,6 +239,24 @@ export function MembersTable({
                 </span>
               )}
 
+              {showWebhookColumn ? (
+                member.isBot ? (
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon-sm"
+                    aria-label={`Webhook: ${member.name}`}
+                    onClick={() =>
+                      setEditingWebhook({ userId: member.userId, name: member.name })
+                    }
+                  >
+                    <WebhookIcon />
+                  </Button>
+                ) : (
+                  <span className="size-8" aria-hidden="true" />
+                )
+              ) : null}
+
               {canAct ? (
                 <Button
                   type="button"
@@ -231,6 +279,19 @@ export function MembersTable({
           );
         })}
       </ul>
+
+      {editingWebhook ? (
+        <BotWebhookDialog
+          organizationId={organizationId}
+          bot={editingWebhook}
+          webhook={editingConfig}
+          onOpenChange={(open) => {
+            if (!open) {
+              setEditingWebhook(null);
+            }
+          }}
+        />
+      ) : null}
 
       <AlertDialog
         open={removing !== null}

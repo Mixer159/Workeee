@@ -131,6 +131,8 @@ convex/
   users.ts               # users.currentUser
   apiTokens.ts           # list / create (action, secret shown once) / revoke
   bots.ts                # listMine / addToOrganization / syncIdentity (internal)
+  botWebhooks.ts         # list / get / set / clear (owner only) +
+                         # loadDelivery / deliver (internal)
   mcp.ts                 # the MCP HTTP actions: POST / GET / DELETE / OPTIONS
   mcpTools.ts            # internal: one function per MCP tool, by token hash
   organizations.ts       # create / listForUser / get / rename / remove /
@@ -169,12 +171,15 @@ convex/
   presence.test.ts       # the heartbeat, the throttle, what counts as activity
   workspace.test.ts      # cross-org order + limited-member visibility
   bots.test.ts           # tokens, identity sync, bot ∩ owner access, no mail
+  botWebhooks.test.ts    # owner-only config, no secret out, triggers, retries
   lib/auth.ts            # getAuthUserId / getAuthUser / getUserByAuthId
   lib/access.ts          # the permission matrix — org + project access
   lib/activity.ts        # logActivity (audit trail)
   lib/apiTokens.ts       # token format, SHA-256, Bearer parsing, live lookup
   lib/bots.ts            # the bot actor: token → bot, bot ∩ owner access
-  lib/brevo.ts           # the only network call in the app
+  lib/brevo.ts           # the only e-mail call in the app
+  lib/botWebhooks.ts     # webhook validation, payload type, scheduling helpers
+  lib/webhookHttp.ts     # the bot webhook POST — the only other network call
   lib/commentActions.ts  # createComment / validateCommentBody (UI + bot)
   lib/commentBody.ts     # the comment segment codec (shared with the client)
   lib/commentReactions.ts # bounded reads and reaction deletion helpers
@@ -254,7 +259,8 @@ src/
     notifications/       # notification-settings-form, notification-feed,
                          # unread-badge
     organizations/       # onboarding, create/join forms + dialogs, members-table,
-                         # delete-organization-dialog, add-bot-dialog
+                         # delete-organization-dialog, add-bot-dialog,
+                         # bot-webhook-dialog
     projects/            # project-screen, project-icon, project-icon-picker,
                          # new-project-button, create/settings dialogs
     providers/           # convex-client-provider, organization-provider
@@ -457,6 +463,10 @@ apiTokens            userId, name, tokenHash, tokenPrefix, botUserId?,
                      lastUsedAt?, revokedAt?   — only the SHA-256 is stored;
                      created = `_creationTime`
                                            by_user · by_token_hash · by_bot
+botWebhooks          botUserId, organizationId, url, secret, headerName?,
+                     updatedBy, updatedAt   — one per bot per organization;
+                     `secret` is read by internal functions only
+                                                       by_bot_org · by_org
 ```
 
 Shared validators live in `convex/schema.ts`: `organizationRoles`,
@@ -501,7 +511,9 @@ The delete is split in two on purpose:
   — and `invites`, the only public entry point. Both are bounded by the size of
   the team, so they always fit in one mutation, and once they are gone the
   organization is unreachable for everybody, its owner included. Queries fail
-  soft to `[]` / `null`, mutations throw. Then it schedules the purge.
+  soft to `[]` / `null`, mutations throw. It also deletes the one way *out*,
+  `botWebhooks` (a URL and a secret, bounded the same way). Then it schedules
+  the purge.
 - **`internal.organizationPurge.purge`** empties the rest — projects, boards,
   tasks, bodies, files *and their blobs*, comments, the audit trail — in runs of
   **200 documents**, rescheduling itself with no delay while there is work left,
@@ -1194,7 +1206,8 @@ and a `From` on a webmail domain fails DMARC alignment (Brevo signs with its
 own domain), so a share of it lands in spam. Both disappear by authenticating a
 real domain in Brevo and changing `BREVO_SENDER_EMAIL` — one environment
 variable, no code. `convex/lib/brevo.ts` is the only module in the app that
-touches the network, which is what keeps that swap a one-file job.
+sends e-mail, which is what keeps that swap a one-file job. (The one other
+network call is the bot webhook POST in `convex/lib/webhookHttp.ts`.)
 
 ### The window
 
@@ -1370,7 +1383,58 @@ it in the same moment. Nothing is ever wider than what the owner may do.
 A bot is never a session user: its `authId` is a synthetic `bot:<uuid>`, its
 `email` is empty, and `getAuthUser` refuses `kind: "bot"`. It is never
 notified either — `enqueue` and `pushNotificationItem` skip bots, so it gets
-neither e-mail nor feed rows.
+neither e-mail nor feed rows. What it gets instead is a **webhook**, below.
+
+### Webhooks
+
+The one way Workeee speaks first to a bot. Two events, the same "addressed to
+you" rule as the digest: a comment that `@`-names the bot (`mention`) and a
+task handed to it (`assigned`). Bots are ordinary mention targets — they are in
+`listProjectMemberIds`, and `projects.assignableMembers` marks them `isBot`.
+
+- **Config:** one `botWebhooks` row per bot per organization — `https://` URL
+  (≤ 2048, no credentials), a secret (16–256 visible ASCII), optional extra
+  header name (an HTTP token, never one the request already sets). A table of
+  its own so the secret is never in a document a query returns.
+  `botWebhooks.list({ organizationId })` / `get({ organizationId, botId })`
+  answer `{ url, hasSecret, headerName }`; `set({ organizationId, botId, url,
+  secret?, headerName? })` (an empty `secret` keeps the stored one, an empty
+  `headerName` removes it) and `clear`. **Organization owner only** — what
+  leaves the organization is the owner's call — and the bot must be a member.
+  Removing the bot from the organization, or deleting the organization,
+  deletes the row.
+- **UI:** in the members list of `/nastaveni/organizace`, and only for the
+  organization **owner** (`MembersTable` skips `botWebhooks.list` for anybody
+  else), every bot row gets a webhook button and, when one is set, an outline
+  "Webhook" badge beside "Bot". `BotWebhookDialog`
+  (`src/components/organizations/bot-webhook-dialog.tsx`) has URL, Klíč (a
+  password field that always starts empty; with `hasSecret` its placeholder
+  says "uložen — ponechte prázdné" and an empty value is sent as *no*
+  `secret`, i.e. keep) and "Vlastní hlavička", plus Uložit and Odebrat
+  (`clear`). Nothing in the client ever holds the stored secret. `/tym` uses
+  the same table with `canManage={false}` and shows none of it. The comment
+  `@`-picker renders bots with `BotAvatar` and the Bot badge in place of the
+  empty e-mail (`MentionMember.isBot`).
+- **Trigger:** `createComment` and `assignTask` (`convex/lib/commentActions.ts`,
+  `convex/lib/taskActions.ts`) — so the UI, `assign_task` and `update_task`
+  all fire it. Only a real handover; **never when the actor is the bot
+  itself**; nothing when the bot has no webhook. The mutation only
+  `runAfter(0)`s `internal.botWebhooks.deliver` with **ids, never the
+  secret** — scheduled arguments are stored.
+- **Delivery:** `loadDelivery` (internal) re-checks everything at send time —
+  webhook still set, task still in the organization, bot ∩ owner project
+  access, the comment still there, the bot still the řešitel — and is the only
+  function that returns the secret. The POST is
+  `{ event, taskId, taskTitle, projectId, organizationId, commentId,
+  commentText, author: { id, name }, url }` (`commentId` / `commentText` null
+  for `assigned`; `url` is `${SITE_URL}/projekt/<id>?ukol=<taskId>`), with
+  `Content-Type: application/json`, `Authorization: Bearer <secret>` and, if
+  set, `<headerName>: <secret>`. No redirects followed, 10 s timeout.
+- **Retries:** 3 attempts on 429 / 5xx / no response, 10 s then 60 s, by
+  rescheduling — never a sleep. Any other 4xx is final. Failures are
+  `console.error`ed with the bot id, the host and the status — never the
+  secret, never the full URL. Nothing about delivery can fail the comment or
+  the assignment.
 
 ### The endpoint
 
@@ -1410,7 +1474,7 @@ most recently updated tasks per project (`by_project_updated_at`).
 | `/prehled` | — | Redirect to `/` — the dashboard lived here briefly while the landing page held the base URL |
 | `/projekt/[id]` | project members | Project header + settings dialog for managers + the Kanban board. `?ukol=<taskId>` opens that task in the drawer on the right: title, status, assignee, meta, block-editor description, Přílohy, Komentáře |
 | `/projekt/[id]/ukol/[taskId]` | project members | Redirect to `/projekt/[id]?ukol=<taskId>` — the detail is a drawer now |
-| `/nastaveni/organizace` | org managers | Rename, members table, organization invites; the owner also gets the delete card |
+| `/nastaveni/organizace` | org managers | Rename, members table, organization invites; the owner also gets each bot's webhook and the delete card |
 | `/nastaveni/upozorneni` | authenticated | One switch: e-mail digests of assignments, mentions and comments on tasks you are řešitel of. Personal, so no manager guard — reached from the user menu ("Nastavení upozornění") |
 | `/nastaveni/propojeni` | authenticated | Personal API tokens (minted once, revocable) and the bots they connected, with the MCP URL and a ready client config. Reached from the user menu ("Propojení") |
 | `/tym` | authenticated | The colleagues of the current organization: every member with role, whether they are online right now, when they were last in the app and when they last did something. The same list managers see in the organization settings, without the controls. Reached from the rail's "Tým" link |
@@ -1949,6 +2013,12 @@ Day-one decisions:
   owner's name, act with bot ∩ owner access and are never notified. The board
   and comment writes moved into shared actions so the UI and a bot run the
   same code. See **Boti a MCP**.
+- **Phase 25 (done).** Bot webhooks: an owner-only per-bot, per-organization
+  webhook (`botWebhooks`) that receives a POST when a comment mentions the bot
+  or a task is assigned to it, re-authorized at send time, retried through the
+  scheduler, secret never returned. The owner configures it from the bot's row
+  in the members list, which carries a "Webhook" badge once it is set, and the
+  mention picker marks bots. See **Boti a MCP → Webhooks**.
 - **Later.** List view, due dates, filters in the URL, activity timeline,
   audit log surface.
 

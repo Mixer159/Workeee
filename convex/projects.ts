@@ -16,6 +16,7 @@ import {
 } from "./lib/access";
 import { logActivity } from "./lib/activity";
 import { getAuthUserId } from "./lib/auth";
+import { isBot } from "./lib/bots";
 import { baseMimeType } from "./lib/files";
 import { touchActive } from "./lib/presence";
 import { listProjectMemberIds } from "./lib/projectMembers";
@@ -166,6 +167,9 @@ export const assignableMembers = query({
               name: user.name,
               email: user.email,
               image: user.image,
+              // Bots are mentionable and assignable like anybody; the picker
+              // only needs to be able to say which ones they are.
+              isBot: isBot(user),
             }
           : null;
       }),
