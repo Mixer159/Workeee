@@ -1,6 +1,7 @@
 import type { Doc, Id } from "../_generated/dataModel";
 import type { MutationCtx } from "../_generated/server";
 import type { ProjectAccess } from "./access";
+import { scheduleMentionWebhooks } from "./botWebhooks";
 import {
   commentBodyText,
   compactCommentBody,
@@ -75,13 +76,11 @@ export async function createComment(
 
   // Queued, never sent from here — and only to the people it is actually
   // about: whoever it mentions, plus the task's řešitel.
-  await notifyComment(
-    ctx,
-    task,
-    commentId,
-    mentionedUserIds(segments),
-    actorId,
-  );
+  const mentioned = mentionedUserIds(segments);
+  await notifyComment(ctx, task, commentId, mentioned, actorId);
+  // A bot named here is not notified (it has no inbox) — it is called, at the
+  // webhook its organization's owner set up, if there is one.
+  await scheduleMentionWebhooks(ctx, task, commentId, mentioned, actorId);
 
   return commentId;
 }

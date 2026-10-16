@@ -11,6 +11,7 @@ import {
   requireOrgManager,
 } from "./lib/access";
 import { getAuthUserId } from "./lib/auth";
+import { deleteBotWebhook } from "./lib/botWebhooks";
 import { isBot, isBotUser } from "./lib/bots";
 import { getPresence } from "./lib/presence";
 import { isSameName, normalizeName } from "./lib/validation";
@@ -172,7 +173,9 @@ export const remove = mutation({
       throw new Error("Název organizace nesouhlasí.");
     }
 
-    const [memberships, invites] = await Promise.all([
+    // Bot webhooks go here too, not in the purge: they are the way *out* —
+    // a URL and a secret — and they are bounded by the team like the other two.
+    const [memberships, invites, webhooks] = await Promise.all([
       ctx.db
         .query("organizationMembers")
         .withIndex("by_org", (q) => q.eq("organizationId", args.organizationId))
@@ -181,10 +184,15 @@ export const remove = mutation({
         .query("invites")
         .withIndex("by_org", (q) => q.eq("organizationId", args.organizationId))
         .collect(),
+      ctx.db
+        .query("botWebhooks")
+        .withIndex("by_org", (q) => q.eq("organizationId", args.organizationId))
+        .collect(),
     ]);
     await Promise.all([
       ...memberships.map((membership) => ctx.db.delete(membership._id)),
       ...invites.map((invite) => ctx.db.delete(invite._id)),
+      ...webhooks.map((webhook) => ctx.db.delete(webhook._id)),
     ]);
 
     await ctx.scheduler.runAfter(0, internal.organizationPurge.purge, {
@@ -345,6 +353,9 @@ export const removeMember = mutation({
       .collect();
     await Promise.all(grants.map((grant) => ctx.db.delete(grant._id)));
     await ctx.db.delete(target.membershipId);
+    // A bot's webhook is per organization, and its secret should not outlive
+    // the membership that made it meaningful.
+    await deleteBotWebhook(ctx, args.userId, args.organizationId);
 
     await logActivity(ctx, {
       organizationId: args.organizationId,

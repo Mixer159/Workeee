@@ -488,6 +488,7 @@ describe("tasks", () => {
         name: "Jana Nováková",
         email: "jana@example.com",
         image: undefined,
+        isBot: false,
       },
     ]);
 

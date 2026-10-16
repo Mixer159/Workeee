@@ -2,6 +2,7 @@ import type { Doc, Id } from "../_generated/dataModel";
 import type { MutationCtx } from "../_generated/server";
 import { getProjectAccess, requireProjectAccess } from "./access";
 import { logActivity } from "./activity";
+import { scheduleAssignedWebhook } from "./botWebhooks";
 import { notifyTaskAssigned, notifyTaskCreated } from "./notifications";
 import { appendOrder, byOrder, orderBetween, renumber } from "./ordering";
 import { touchActive } from "./presence";
@@ -107,6 +108,7 @@ export async function assignTask(
   // taking the task yourself, tells nobody anything.
   if (args.assigneeId && args.assigneeId !== task.assigneeId) {
     await notifyTaskAssigned(ctx, task, actorId, args.assigneeId);
+    await scheduleAssignedWebhook(ctx, task, args.assigneeId, actorId);
   }
 }
 
