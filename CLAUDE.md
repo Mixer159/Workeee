@@ -279,6 +279,8 @@ src/
   proxy.ts               # `/` answers to the session cookie: app, or the
                          # public page rewritten in — see **Routes**
 public/marketing/        # the captures of the running app the page is built on
+web/                     # the Workeee website: a separate Next.js project with
+                         # its own dependencies and checks, see **The website**
 LICENSE                  # MIT. The public page claims it, so it has to be here
 ```
 
@@ -1536,6 +1538,30 @@ the verification gate runs. Entries are written for that person, so they say
 what is now different for them, never which file moved. An internal refactor
 with no user-visible effect deliberately gets nothing — a changelog that logs
 everything is a git log with worse formatting.
+
+## The website (`web/`)
+
+`web/` is the Workeee website, copied whole from
+[spsJakubSzydlowski/workeee-website](https://github.com/spsJakubSzydlowski/workeee-website).
+It is **a separate Next.js project** with its own `package.json`,
+`pnpm-lock.yaml`, ESLint, TypeScript and Tailwind setup. It imports nothing
+from the app, and the app imports nothing from it.
+
+- The app's checks skip it. `tsconfig.json` excludes `web`: otherwise `@/` in
+  its files resolves to this `src/` and `pnpm typecheck` fails on every import,
+  and an installed `web/node_modules` leaks its type declarations in. ESLint
+  ignores `web/**`, and `@source not "../../web"` in `globals.css` keeps
+  Tailwind from scanning its class names into the app's stylesheet.
+- It has its own gate, run inside the folder:
+  `pnpm install && pnpm lint && pnpm typecheck && pnpm build`. `pnpm dev`
+  serves it on `http://localhost:3210`, beside the app on `:3000`.
+- It deploys as its own Vercel project with **Root Directory `web`**. Set
+  `NEXT_PUBLIC_SITE_URL` there to the website's domain; without it, its
+  canonical links fall back to the project's Vercel production domain.
+- Its facts are copied, not imported: `web/src/lib/changelog.ts` is a copy of
+  `src/lib/changelog.ts`, and `web/src/lib/workeee.ts` restates limits,
+  commands and links from this file and the README. When one side changes,
+  copy the change to the other.
 
 ## Design system
 

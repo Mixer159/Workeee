@@ -78,9 +78,24 @@ s Vercel projektem. Produkční Convex deployment musí mít nastavené
 veřejné adresy produkčního Convex deploymentu a
 `NEXT_PUBLIC_SITE_URL=https://workeee.vercel.app`.
 
+## Webová prezentace
+
+Složka `web/` obsahuje webovou prezentaci Workeee. Je to samostatný Next.js
+projekt s vlastními závislostmi a kontrolami, s aplikací nesdílí kód:
+
+```bash
+cd web
+pnpm install
+pnpm dev
+```
+
+Poběží na `http://localhost:3210`. Na Vercelu se nasazuje jako samostatný
+projekt s kořenovou složkou (Root Directory) `web`.
+
 ## Struktura a pravidla
 
-Backend je v `convex/`, frontend v `src/` a CI v `.github/workflows/ci.yml`.
+Backend je v `convex/`, frontend v `src/`, webová prezentace ve složce `web/`
+a CI v `.github/workflows/ci.yml`.
 Úplný kontrakt projektu — verze stacku, auth a přístupový model, schéma,
 designové tokeny a roadmapa — je v [`CLAUDE.md`](./CLAUDE.md). Při změně
 dokumentovaného faktu aktualizujte ve stejném commitu i tento soubor. Změnu,
