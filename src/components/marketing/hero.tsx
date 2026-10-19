@@ -1,107 +1,135 @@
-import { RepoButton } from "@/components/marketing/repo-button";
-import { Shot } from "@/components/marketing/shot";
+import Image, { getImageProps } from "next/image";
+import { ArrowIcon, GitHubIcon } from "@/components/marketing/icons";
+import { PAINTING_QUALITY, PHOTOS } from "@/lib/paintings";
+import { tidy } from "@/lib/typography";
+import { ACTIONS, HERO, LINKS } from "@/lib/landing";
 import { SHOTS } from "@/lib/shots";
+import { ButtonLink } from "./button-link";
+import { HeroBoard } from "./hero-board";
 
 /**
- * The hero, as a two-column statement: the sentence the page exists to say on
- * the left, the copy and the page's one button on the right, bottom-aligned.
- * The one phrase that decides whether somebody keeps reading — that the thing
- * runs on their own infrastructure — is the only text on the page set in the
- * accent color.
- *
- * The board sits underneath at the column's full width, and the strip of three
- * claims closes the section: short enough to be read on the way past, and each
- * one something the hero itself did not already say.
- *
- * Two captures, and the phone is not a nicety. The desktop board at 390 px is
- * a seventh of the scale it was taken at — four columns of unreadable text,
- * which is a worse advert for the product than no picture at all. Both are
- * `priority`, and the `sizes` are what keep that from costing anything: each
- * one is displayed at zero width on the side of `md` it is hidden on, so the
- * browser preloads the smallest candidate there instead of a picture it will
- * never paint.
+ * The board capture. From md up the desktop board, below it the phone board.
+ * The two have different proportions, so the window sets the ratio (in CSS) and
+ * the image fills it. One <img> inside <picture> means only the matching file
+ * is downloaded, so it can load eagerly.
  */
-const CLAIMS = [
-  "Open source pod licencí MIT",
-  "Nasadíte během jednoho odpoledne",
-  "Žádné poplatky za členy týmu",
-];
+function BoardPicture() {
+  const desktop = getImageProps({
+    src: SHOTS.board.src,
+    alt: SHOTS.board.alt,
+    width: SHOTS.board.width,
+    height: SHOTS.board.height,
+    sizes: "(min-width: 1024px) min(62vw, 68rem), 82vw",
+    // Small interface text keeps its edges at 90; at the default 75 it smudges.
+    quality: 90,
+  });
+  const phone = getImageProps({
+    src: SHOTS.boardMobile.src,
+    alt: SHOTS.boardMobile.alt,
+    width: SHOTS.boardMobile.width,
+    height: SHOTS.boardMobile.height,
+    sizes: "17rem",
+    quality: 90,
+    loading: "eager",
+    fetchPriority: "high",
+  });
 
-export function Hero() {
   return (
-    <section className="border-b border-border">
-      <div className="mx-auto max-w-[84rem] px-6 pt-16 lg:px-10 lg:pt-24">
-        <div className="grid gap-10 lg:grid-cols-12 lg:items-end lg:gap-16">
-          <h1
-            data-rise
-            className="max-w-[13ch] font-heading text-[clamp(2.75rem,6.8vw,5.25rem)] leading-[1.02] font-bold tracking-[-0.045em] lg:col-span-7"
-          >
-            Týmová nástěnka, která{" "}
-            <span className="text-primary">běží u vás.</span>
-          </h1>
+    <picture>
+      <source media="(min-width: 768px)" srcSet={desktop.props.srcSet} sizes={desktop.props.sizes} />
+      {/* A plain img inside the picture: next/image cannot switch between two sources.
+          Its one alt has to fit both files, and the board's own does: the phone
+          capture shows the same board. */}
+      <img
+        {...phone.props}
+        alt={SHOTS.board.alt}
+        className="absolute inset-0 block size-full object-cover object-left-top"
+      />
+    </picture>
+  );
+}
 
-          <div className="lg:col-span-5 lg:pb-2">
-            <p
-              data-rise
-              style={{ "--delay": "140ms" } as React.CSSProperties}
-              className="max-w-[30rem] text-[1.0625rem] leading-[1.6] tracking-[-0.008em] text-muted-foreground"
-            >
-              Projekty, úkoly, komentáře a přílohy na jednom místě. Nasadíte si
-              ji na vlastní Convex a Vercel, takže data máte pod kontrolou.
-            </p>
+/**
+ * Exactly one window tall. Layers, bottom to top: the landscape painting,
+ * the white sheet that leaves it visible at the top and the sides, then text
+ * and the board capture. The capture sits in a frame filled with a second,
+ * closely related painting and runs off the hero's bottom edge. Tasks move
+ * across it in a loop (HeroBoard); at rest it is the capture as it is.
+ * The geometry is in `.hero` in marketing.css.
+ */
+export function Hero() {
+  const photo = PHOTOS.poleMalba;
 
-            <div
-              data-rise
-              style={{ "--delay": "280ms" } as React.CSSProperties}
-              className="mt-8 flex flex-wrap items-center gap-x-6 gap-y-3"
-            >
-              <RepoButton />
-              <a
-                href="#nasazeni"
-                className="rounded-md text-sm text-muted-foreground underline decoration-border underline-offset-[6px] transition-colors outline-none hover:text-foreground hover:decoration-primary focus-visible:ring-3 focus-visible:ring-ring/40"
-              >
-                Nasazení krok za krokem
-              </a>
+  return (
+    <section id="top" className="hero" aria-labelledby="hero-title">
+      <div className="hero-photo">
+        {/* Only bands of it show around the sheet, so it need not match the window's width. */}
+        <Image
+          src={photo.src}
+          alt={photo.alt}
+          fill
+          sizes="(min-width: 1024px) 75vw, 100vw"
+          quality={PAINTING_QUALITY}
+          loading="eager"
+        />
+      </div>
+      <div className="hero-sheet" />
+
+      <div className="hero-copy wrap">
+        <h1 id="hero-title" className="hero-title rise">
+          {HERO.headline.map((line) => (
+            <span key={line} className="block">
+              {tidy(line)}
+            </span>
+          ))}
+        </h1>
+        {/* The three claims. What the board holds is said once, in the statement below. */}
+        <p className="hero-lead rise font-medium [--delay:80ms]">
+          {HERO.claims.map((claim, index) => (
+            <span key={claim}>
+              {index > 0 && " "}
+              {tidy(claim)}.
+            </span>
+          ))}
+        </p>
+        <div className="hero-actions rise [--delay:160ms]">
+          <ButtonLink href={LINKS.repo} size="hero" className="hero-btn">
+            <GitHubIcon className="size-5" />
+            {ACTIONS.repo}
+          </ButtonLink>
+          <ButtonLink href="#nasazeni" tone="white" size="hero" className="hero-btn">
+            {ACTIONS.deploy}
+            <ArrowIcon className="size-[18px]" />
+          </ButtonLink>
+        </div>
+
+        <div className="hero-slot">
+          <div className="hero-capture">
+            <div className="hero-mat">
+              {/* The largest element of the first screen (LCP), though only its rim
+                  shows around the board: loaded first, and no larger than that rim needs. */}
+              <Image
+                src={PHOTOS.planMalba.src}
+                alt=""
+                fill
+                sizes="(min-width: 768px) 50vw, 60vw"
+                quality={PAINTING_QUALITY}
+                loading="eager"
+                fetchPriority="high"
+              />
+            </div>
+            <div className="hero-frame">
+              <HeroBoard className="hero-window">
+                <BoardPicture />
+              </HeroBoard>
             </div>
           </div>
         </div>
-
-        <div
-          data-rise
-          style={{ "--delay": "420ms" } as React.CSSProperties}
-          className="mt-14 pb-16 lg:mt-20 lg:pb-20"
-        >
-          <Shot
-            shot={SHOTS.boardMobile}
-            crop
-            priority
-            className="aspect-[3/4] md:hidden"
-            imageClassName="object-[50%_18%]"
-            sizes="(min-width: 768px) 1px, 100vw"
-          />
-          <Shot
-            shot={SHOTS.board}
-            priority
-            className="hidden md:block"
-            sizes="(min-width: 87rem) 79rem, (min-width: 768px) calc(100vw - 3rem), 1px"
-          />
-        </div>
       </div>
 
-      {/* The strip reads on the way past: three claims, three hairline cells,
-          and none of them repeats what the hero already said. */}
-      <div className="border-t border-border">
-        <div className="mx-auto grid max-w-[84rem] grid-cols-1 divide-y divide-border px-6 sm:grid-cols-3 sm:divide-x sm:divide-y-0 lg:px-10">
-          {CLAIMS.map((claim) => (
-            <p
-              key={claim}
-              className="py-4 text-sm text-muted-foreground sm:px-8 sm:py-5 sm:first:pl-0 sm:last:pr-0"
-            >
-              {claim}
-            </p>
-          ))}
-        </div>
-      </div>
+      {/* The page below starts as a white sheet with rounded top corners, so the
+          bands of painting at the sides turn into it instead of ending square. */}
+      <div className="hero-foot" aria-hidden="true" />
     </section>
   );
 }

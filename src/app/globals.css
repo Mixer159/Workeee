@@ -1,10 +1,6 @@
 @import "tailwindcss";
 @import "tw-animate-css";
 
-/* The website in `web/` is a separate project with its own Tailwind build.
- * Without this, its class names would be scanned into the app's stylesheet. */
-@source not "../../web";
-
 /*
  * BlockNote needs **both** of the next two lines, and they do different jobs.
  *
@@ -28,48 +24,6 @@
  * third-party controls. Named palettes live on `data-theme`; every dark
  * palette adds this class before first paint. */
 @custom-variant dark (&:is(.dark *, .dark));
-
-/* The public site is always light, and it is the product's own light default:
- * the Obloha palette spelled out again on the marketing root. These values
- * override whichever app palette is stored on `<html>`, so a visitor with a
- * dark app theme still gets the light page — and it is not a second token
- * vocabulary, it is the same one. */
-.workeee-marketing {
-  --background: 216 45% 97%;
-  --foreground: 222 32% 13%;
-  --card: 216 55% 99%;
-  --card-foreground: 222 32% 13%;
-  --popover: 216 55% 99%;
-  --popover-foreground: 222 32% 13%;
-  --primary: 224 76% 43%;
-  --primary-foreground: 0 0% 100%;
-  --secondary: 218 39% 93%;
-  --secondary-foreground: 222 32% 13%;
-  --muted: 218 39% 93%;
-  --muted-foreground: 219 15% 39%;
-  --accent: 218 46% 90%;
-  --accent-foreground: 222 32% 13%;
-  --destructive: 0 72% 42%;
-  --destructive-foreground: 0 0% 100%;
-  --border: 218 31% 86%;
-  --input: 218 26% 77%;
-  --ring: 224 76% 43%;
-  --sidebar: 218 48% 94%;
-  --sidebar-foreground: 222 32% 13%;
-  --sidebar-primary: 224 76% 43%;
-  --sidebar-primary-foreground: 0 0% 100%;
-  --sidebar-accent: 218 44% 88%;
-  --sidebar-accent-foreground: 222 32% 13%;
-  --sidebar-border: 218 31% 84%;
-  --sidebar-ring: 224 76% 43%;
-  --chart-1: 224 76% 43%;
-  --chart-2: 196 72% 42%;
-  --chart-3: 268 58% 49%;
-  --chart-4: 154 50% 38%;
-  --chart-5: 12 68% 45%;
-  --overlay: 222 45% 9%;
-  --shadow: 222 45% 12%;
-}
 
 /*
  * Design tokens — HSL channel triples, consumed through `@theme inline` below.
@@ -384,6 +338,46 @@
   --radius-4xl: 9999px;
 }
 
+/*
+ * The public page's own palette (see `src/app/(marketing)/marketing.css`). It
+ * does not follow the app's themes: the page is one composed scene of white
+ * sheets, ink and two oil paintings. Prefixed `site-` so it is never confused
+ * with the app's vocabulary, and only `src/components/marketing` uses it.
+ * `static` because the page's stylesheet reads these as plain variables.
+ */
+@theme static {
+  --color-site-page: #ffffff;
+  --color-site-surface: #ffffff;
+  /* The footer ground, a step below white; muted text keeps 5.5:1 on it. */
+  --color-site-footer: #f2f3f5;
+  --color-site-ink: #111113;
+  /* Body text, 5.9:1 on the page. */
+  --color-site-muted: #5b616b;
+  /* Faded words of headlines and the statement. Large text only, 3.2:1. */
+  --color-site-faded: #868c96;
+  --color-site-deep: #0e3b2e;
+  /* The green of the hero painting's fields, deepened so white reads on it
+     (6.6:1); the ground of "Jak se s Workeee pracuje". */
+  --color-site-grass: #46652f;
+  /* Quiet text on that green, 4.9:1. */
+  --color-site-grass-soft: #d6e2c8;
+  /* The dot field and the card of the mark. */
+  --color-site-dot: #2a9d6f;
+  /* Quiet text on near-black, 9:1. */
+  --color-site-soft: #b9bdc6;
+
+  /* Controls and the frames around captures, panels, and the inset that
+     nests in a frame. */
+  --radius-site-control: 14px;
+  --radius-site-panel: 24px;
+  --radius-site-inset: 8px;
+
+  --shadow-site-bar: 0 10px 30px -10px rgb(17 17 19 / 0.5);
+  /* A capture's frame on the painting: a thin light edge and a long soft shadow. */
+  --shadow-site-frame: 0 0 0 1px rgb(255 255 255 / 0.55), 0 26px 44px -18px rgb(3 24 17 / 0.6);
+  --shadow-site-screen: 0 1px 2px rgb(17 17 19 / 0.05), 0 18px 36px -22px rgb(17 17 19 / 0.28);
+}
+
 @layer base {
   * {
     @apply border-border outline-ring/50;
@@ -531,31 +525,8 @@
 }
 
 /*
- * The public page.
- *
- * `html:has()` rather than a class on `<html>`: a nested layout cannot touch
- * the document element, and without this the app's stored palette shows through
- * an overscroll bounce and behind a page shorter than the viewport — for a
- * visitor with a dark app theme that is a dark flash under a light page.
- * `color-scheme` hands the scrollbar and the focus ring to the light side for
- * the same reason.
- *
- * The literal value is the Obloha background above. It has to be literal:
- * `html` is outside the element that carries the override, so it cannot read
- * the token. The two move together.
- */
-html:has(.workeee-marketing),
-html:has(.workeee-marketing) body {
-  background-color: hsl(216 45% 97%);
-}
-
-.workeee-marketing {
-  color-scheme: light;
-}
-
-/*
  * The display word. Switzer at 800 with the tracking pulled in hard: at the
- * sizes the footer bookend and the auth screen use it, the default spacing
+ * size the auth screen uses it, the default spacing
  * reads as gaps between letters rather than as one word, and `WORKEEE` is
  * three identical letters in a row, which needs the word to hold together to
  * stay readable.
@@ -565,39 +536,6 @@ html:has(.workeee-marketing) body {
   letter-spacing: -0.055em;
   line-height: 0.82;
   text-transform: uppercase;
-}
-
-@media (prefers-reduced-motion: no-preference) {
-  @keyframes workeee-rise {
-    from {
-      opacity: 0;
-      transform: translate3d(0, 1.1em, 0);
-    }
-    to {
-      opacity: 1;
-      transform: translate3d(0, 0, 0);
-    }
-  }
-
-  @keyframes workeee-sweep {
-    from {
-      transform: scaleX(0);
-    }
-    to {
-      transform: scaleX(1);
-    }
-  }
-
-  .workeee-marketing [data-rise] {
-    animation: workeee-rise 900ms cubic-bezier(0.16, 1, 0.3, 1) both;
-    animation-delay: var(--delay, 0ms);
-  }
-
-  .workeee-marketing [data-sweep] {
-    transform-origin: left center;
-    animation: workeee-sweep 900ms cubic-bezier(0.16, 1, 0.3, 1) both;
-    animation-delay: var(--delay, 0ms);
-  }
 }
 
 /*
@@ -628,58 +566,3 @@ html:has(.workeee-marketing) body {
   }
 }
 
-/*
- * Scroll choreography, done with scroll-driven animations rather than with a
- * library.
- *
- * Every rule below is wrapped twice, and both wrappers are load-bearing.
- * `@supports` because an `animation` with `both` and no timeline support falls
- * back to the *document* timeline, which would fire every reveal on the page at
- * once during load — the exact failure that makes people reach for JavaScript.
- * `prefers-reduced-motion` because these move.
- *
- * What this buys: the whole public page stays a server component, nothing
- * listens to scroll, nothing measures, and the interpolation happens on the
- * compositor instead of in a frame callback.
- */
-@supports (animation-timeline: view()) {
-  @media (prefers-reduced-motion: no-preference) {
-    @keyframes workeee-enter {
-      from {
-        opacity: 0;
-        transform: translate3d(0, 2rem, 0);
-      }
-      to {
-        opacity: 1;
-        transform: translate3d(0, 0, 0);
-      }
-    }
-
-    /* A section arrives once, as it comes up the viewport. */
-    .workeee-marketing [data-enter] {
-      animation: workeee-enter linear both;
-      animation-timeline: view();
-      animation-range: entry 4% cover 26%;
-    }
-
-    /* Children of one row arrive in reading order. The delay is a range shift,
-       not a time delay, so it stays tied to the scrollbar. */
-    .workeee-marketing [data-enter-stagger] > * {
-      animation: workeee-enter linear both;
-      animation-timeline: view();
-      animation-range: entry 2% cover 24%;
-    }
-
-    .workeee-marketing [data-enter-stagger] > *:nth-child(2) {
-      animation-range: entry 6% cover 30%;
-    }
-
-    .workeee-marketing [data-enter-stagger] > *:nth-child(3) {
-      animation-range: entry 10% cover 36%;
-    }
-
-    .workeee-marketing [data-enter-stagger] > *:nth-child(n + 4) {
-      animation-range: entry 14% cover 42%;
-    }
-  }
-}

@@ -1,18 +1,20 @@
-import type { Metadata } from "next";
-import { ChangelogSection } from "@/components/marketing/changelog-section";
-import { Facts } from "@/components/marketing/facts";
+import type { Metadata, Viewport } from "next";
+import { Deploy } from "@/components/marketing/deploy";
+import { Features } from "@/components/marketing/features";
+import { Footer } from "@/components/marketing/footer";
 import { Hero } from "@/components/marketing/hero";
-import { OpenSource } from "@/components/marketing/open-source";
-import { Product } from "@/components/marketing/product";
-import { SelfHosting } from "@/components/marketing/self-hosting";
-
-const DESCRIPTION =
-  "Open source nástěnka pro týmové projekty a úkoly: vlastní stavy, blokový popis, přílohy, komentáře a upozornění. Běží na vašem Convexu a vašem Vercelu.";
+import { LatestChanges } from "@/components/marketing/latest-changes";
+import { Logos } from "@/components/marketing/logos";
+import { Nav } from "@/components/marketing/nav";
+import { Screens } from "@/components/marketing/screens";
+import { SourceCode } from "@/components/marketing/source-code";
+import { Statement } from "@/components/marketing/statement";
+import { SITE } from "@/lib/landing";
 
 /**
  * `openGraph` here replaces the root layout's rather than merging into it, so
  * `siteName` / `locale` / `type` are repeated in full. `images` is left out on
- * purpose: that omission is what lets `opengraph-image.tsx` next door supply
+ * purpose: that omission is what lets `opengraph-image.jpg` next door supply
  * the picture.
  *
  * The canonical is here because this page is served twice: at its own address
@@ -20,38 +22,47 @@ const DESCRIPTION =
  * session. One of the two has to be the real one, and it is this one.
  */
 export const metadata: Metadata = {
-  title: "Workeee: projekty a úkoly pro tým",
-  description: DESCRIPTION,
+  title: SITE.title,
+  description: SITE.description,
   alternates: { canonical: "/o-aplikaci" },
   openGraph: {
     type: "website",
-    siteName: "Workeee",
+    siteName: SITE.name,
     locale: "cs_CZ",
-    title: "Workeee: projekty a úkoly pro tým",
-    description: DESCRIPTION,
+    title: SITE.title,
+    description: SITE.description,
   },
   twitter: {
     card: "summary_large_image",
-    title: "Workeee: projekty a úkoly pro tým",
-    description: DESCRIPTION,
+    title: SITE.title,
+    description: SITE.description,
   },
 };
 
+/** The sky of the hero is the first thing under the browser chrome. */
+export const viewport: Viewport = { themeColor: "#599ad2" };
+
 /**
- * The public page. Server-rendered and static: a crawler and a chat unfurl have
- * to find the real copy in the HTML, and nothing here needs a database. The one
- * client component on it is the link onward for somebody already signed in;
- * even the scroll choreography is CSS.
+ * The public page. Server-rendered and static: a crawler and a chat unfurl
+ * have to find the real copy in the HTML, and nothing here needs a database.
+ * The client parts are the bar's menu and its link onward, the copy buttons
+ * and the moving board in the hero.
  */
 export default function LandingPage() {
   return (
     <>
-      <Hero />
-      <Facts />
-      <Product />
-      <SelfHosting />
-      <OpenSource />
-      <ChangelogSection />
+      <Nav />
+      <main>
+        <Hero />
+        <Logos />
+        <Statement />
+        <Screens />
+        <Features />
+        <Deploy />
+        <SourceCode />
+        <LatestChanges />
+      </main>
+      <Footer />
     </>
   );
 }

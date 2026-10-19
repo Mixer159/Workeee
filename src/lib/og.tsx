@@ -4,11 +4,11 @@ import type { CSSProperties } from "react";
 import { ImageResponse } from "next/og";
 
 /**
- * The canvas every link preview is drawn on — one layout, shared by the public
- * page, the app and the invite page, so an unfurl always looks like the same
- * product. Colors are the theme tokens spelled out, because Satori never sees
- * `globals.css`: graphite + lime for the app and the invite page, the light
- * Obloha palette for the public page, which presents light now.
+ * The canvas the app's link previews are drawn on — one layout, shared by the
+ * app and the invite page, so an unfurl always looks like the same product.
+ * Colors are the theme tokens spelled out, because Satori never sees
+ * `globals.css`: graphite + lime. The public page has its own static preview,
+ * `opengraph-image.jpg` beside it, made from its hero.
  */
 
 /** 1200 × 630 — what Slack, Teams, X, LinkedIn and Messenger all expect. */
@@ -22,13 +22,6 @@ const SCHEMES = {
     muted: "#969FAB",
     accent: "#CBF14B",
     glow: "radial-gradient(900px 620px at 108% 118%, rgba(203,241,75,0.16), rgba(203,241,75,0) 62%)",
-  },
-  light: {
-    background: "#F4F7FB",
-    foreground: "#171D2C",
-    muted: "#555F72",
-    accent: "#1A47C1",
-    glow: "radial-gradient(900px 620px at 108% 118%, rgba(26,71,193,0.13), rgba(26,71,193,0) 62%)",
   },
 } as const;
 

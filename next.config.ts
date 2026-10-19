@@ -20,6 +20,14 @@ const contentSecurityPolicy = [
 const nextConfig: NextConfig = {
   poweredByHeader: false,
   /*
+   * 75 is the default and the only quality Next.js serves unless told. The
+   * public page asks for two more: 90 for the board captures in the hero,
+   * because small interface text loses its edges at 75, and 60 for the
+   * paintings, whose brushwork hides the compression. Anything not listed
+   * here is answered with a 400 and the picture is simply missing.
+   */
+  images: { qualities: [60, 75, 90] },
+  /*
    * The link previews draw their type with Satori, which reads the two static
    * Switzer cuts straight off disk. The invite preview is rendered on demand
    * rather than at build, so those two files have to be traced into the
