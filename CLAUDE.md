@@ -211,12 +211,14 @@ src/
     favicon.ico          # 16 · 32 · 48, rasterized from icon.svg
     apple-icon.png       # 180, full bleed (iOS rounds it itself)
     fonts/               # Switzer + JetBrains Mono variable, self-hosted, plus
-                         # the two static Switzer cuts Satori reads
+                         # the two static Switzer cuts Satori reads, plus
+                         # Urbanist (public page only) and its OFL licence
     opengraph-image.tsx  # the link preview every page inherits
     not-found.tsx        # 404, outside the shell, with its own frame
-    (marketing)/         # PUBLIC shell: pinned light tokens, header + footer
+    (marketing)/         # PUBLIC shell: Urbanist + marketing.css, which only
+                         # these routes load
     (marketing)/o-aplikaci/page.tsx            # the landing page
-    (marketing)/o-aplikaci/opengraph-image.tsx # its own preview, beside the page on purpose
+    (marketing)/o-aplikaci/opengraph-image.jpg # its own static preview, beside the page on purpose
     (marketing)/zmeny/   # the whole changelog, grouped by month
     (auth)/prihlaseni    # sign in       (?invite=<code> carries a pending invite)
     (auth)/registrace    # sign up       (?invite=<code> likewise)
@@ -249,10 +251,11 @@ src/
     layout/              # app-shell, sidebar-content, organization-switcher,
                          # projects-nav, notifications-link, user-menu, theme-picker,
                          # wordmark, page-header, empty-state
-    marketing/           # the public page only: site-header, site-footer,
-                         # app-link, repo-button, shot, hero, facts, product,
-                         # self-hosting, code-block, open-source,
-                         # changelog-section, changelog-entry
+    marketing/           # the public page only: nav, nav-menu, app-link, hero,
+                         # hero-board (+ captures), logos, statement, screens,
+                         # features, deploy, copy-button, source-code,
+                         # latest-changes, changes-page, page-head, footer,
+                         # button-link, typo, icons
     notifications/       # notification-settings-form, notification-feed,
                          # unread-badge
     organizations/       # onboarding, create/join forms + dialogs, members-table,
@@ -274,15 +277,15 @@ src/
                          # use-presence-heartbeat
   lib/                   # auth-client, auth-redirect, auth-server, auth-errors,
                          # blocknote-cs, changelog, clipboard, comment-draft,
-                         # current-organization, format, invites, mcp, og,
-                         # organization, presence, project-emojis, project-icons,
-                         # repo, save-state, shots, task-status-colors, tasks, theme,
-                         # upload, user, utils, workspace-rail
+                         # current-organization, format, invites, landing, mcp,
+                         # og, organization, paintings, presence, project-emojis,
+                         # project-icons, repo, save-state, shots,
+                         # task-status-colors, tasks, theme, typography, upload,
+                         # user, utils, workspace-rail
   proxy.ts               # `/` answers to the session cookie: app, or the
                          # public page rewritten in — see **Routes**
-public/marketing/        # the captures of the running app the page is built on
-web/                     # the Workeee website: a separate Next.js project with
-                         # its own dependencies and checks, see **The website**
+public/marketing/        # the public page's pictures: screenshots/, malby/
+                         # (the paintings), loga/ (the companies using it)
 LICENSE                  # MIT. The public page claims it, so it has to be here
 TRACKING.md              # analytics, consent and legal state (none tracked)
 ```
@@ -1425,7 +1428,7 @@ most recently updated tasks per project (`by_project_updated_at`).
 | `/obnova-hesla` | public | Ask for a password reset link by e-mail; the sign-in screen's "Zapomenuté heslo" leads here |
 | `/nove-heslo` | public | Where the e-mailed link lands (`?token=`); set the new password, or ask for a fresh link when the token is stale |
 
-## The public page (Phase 14)
+## The public page (Phase 14, redesigned in Phase 25)
 
 `/o-aplikaci` is the landing page and it is public, static and server-rendered:
 a crawler and a chat unfurl have to find the real copy in the HTML. It is also
@@ -1436,83 +1439,61 @@ the same address; the page's `canonical` names `/o-aplikaci` so the two never
 compete in search. And **a signed-in visitor on `/o-aplikaci` is not
 redirected** — they are usually the person who deployed it, and bouncing them
 would make the page unreachable for exactly the people who need to show it to
-somebody. The header's one client component (`marketing/app-link.tsx`) is the
-door either way: "Přehled" for a validated session, "Přihlásit se" for a
-visitor, and nothing while Convex is still deciding which.
+somebody. The bar's one auth-aware component (`marketing/app-link.tsx`) is the
+door either way: "Přehled" for a validated session, "Přihlášení" for a
+visitor, and nothing while Convex is still deciding which; its slot keeps its
+place, so the bar never shifts.
 
-- **It is pinned to the light presentation.** User-selected themes belong to
-  the signed-in work surface; the public page and its product captures stay
-  one composed scene, so the marketing root locally overrides the same
-  semantic tokens (`--background`, `--primary`, …) with the Obloha palette,
-  the product's light default. It is not a second token vocabulary.
-  `html:has(.workeee-marketing)` paints the document itself, because a nested
-  layout cannot touch `<html>` and without it a visitor's stored dark app
-  theme shows through an overscroll bounce.
-- It has **one job and one button**: "Otevřít na GitHubu", which appears exactly
-  twice, in the hero and at the end of the open-source section. The header
-  carries none, because a third copy following the reader down the page would
-  make it three. The secondary action is one anchor, "Nasazení krok za krokem".
-- Sections, and no two share a layout family: hero (a two-column statement with
-  the accent phrase in `--primary`, the board at full width and a three-claim
-  hairline strip) → **Co je uvnitř** (a numbered index of six features on
-  hairline rows) → **Podívejte se dovnitř** (the product as a horizontal
-  scroll-snap gallery of real captures, edge-faded while there is more) →
-  **Nasadíte si to sami** (steps on a vertical rail) → **Zdrojový kód máte
-  celý** (a bare statement) → **Poslední změny** (a date rail) → the footer
-  bookend.
-- **Zero eyebrows.** Not one small uppercase label above a heading anywhere on
-  the page. The heading is the label, and the section's place on the page is the
-  category.
-- **Monospace has exactly one job here**: commands, environment-variable names,
-  file paths, the repository address and changelog dates. Nothing else on either
-  surface is set in it.
+The design is a contribution by Jakub Szydlowski, moved in from his separate
+website project in Phase 25: the page only, none of that project's scaffolding.
 
-### The hero
-
-A two-column statement, bottom-aligned: the one sentence on the left, the copy
-and the page's one button on the right. The deciding phrase — that the product
-runs on the visitor's own infrastructure — is the only text on the page set in
-the accent color. Underneath, the board at the column's full width, framed by
-one hairline like every other capture on the page, and a strip of three claims
-on hairline cells closes the section; each claim is something the hero itself
-did not already say. Below `md` the board becomes `SHOTS.boardMobile`, because
-the desktop capture at 390 px is a seventh of the scale it was taken at and
-four columns of unreadable text are a worse advert than no picture. Both
-captures are `priority`, and each declares a `1px` display width on the side of
-`md` it is hidden on, so neither is preloaded where it is never painted.
-
-### The imagery
-
-Every picture of the product on this page is **a capture of the running app**,
-listed in `src/lib/shots.ts` with its real pixel dimensions so no component
-ever guesses an aspect ratio and re-shooting means editing one file. Desktop
-shots are taken at 1440 × 900 with a 2× pixel ratio, the phone one at 390
-wide, all in the light Obloha theme the page presents, cropped tight with no
-browser chrome and no invented address bar. `Shot` frames them the way the app
-frames its own panels: one hairline, a 12 px corner, no drop shadow pretending
-the picture floats above the page it was taken from. There are no textures and
-no plates of light; the captures are the only imagery, and the hairlines
-between sections are the only ornament.
-
-### The motion
-
-`MOTION_INTENSITY` is low and there is no animation library on this page. All
-of it is CSS, which is what keeps the whole page a server component: nothing
-listens to scroll, nothing measures, and the interpolation happens on the
-compositor.
-
-- **Load-in** is a short timed sequence (`data-rise` / `data-sweep`): the
-  hero's accent rule, headline, copy and capture arrive in reading order.
-- **Scroll reveals** use `animation-timeline: view()` (`data-enter`,
-  `data-enter-stagger`). The stagger is a shift of `animation-range`, not a
-  delay, so it stays tied to the scrollbar rather than to a clock.
-- Every rule is wrapped in **both** `@supports (animation-timeline: …)` and
-  `prefers-reduced-motion: no-preference`, and the `@supports` is load-bearing:
-  an `animation` with `both` and no timeline support falls back to the
-  *document* timeline, which would fire every reveal on the page at once during
-  load. That failure is exactly what makes people reach for JavaScript here.
-  Where the timeline is unsupported the page is simply static, which is a
-  correct page.
+- **It has its own palette and typeface, on purpose.** The page is one
+  composed scene (white sheets laid on two Van Gogh paintings, ink text, a
+  deep-green accent) and does not follow the visitor's app theme. Its tokens
+  are the `site-` set in `globals.css` (`@theme static`: `text-site-ink`,
+  `bg-site-surface`, `rounded-site-panel`, `shadow-site-frame`, …), prefixed so
+  they can never be mistaken for the app's vocabulary, and only
+  `src/components/marketing` uses them. The type is **Urbanist**, self-hosted
+  from `src/app/fonts` (subset to Latin and Latin Extended, OFL licence beside
+  it) and declared in `(marketing)/layout.tsx`, so the app never downloads it.
+  Commands use the app's JetBrains Mono.
+- **Its stylesheet loads only on its routes.** `src/app/(marketing)/marketing.css`
+  is imported by the marketing layout and holds the hero geometry, the bar,
+  the logo band, the board animation and the footer wordmark, all inside the
+  `base` / `components` cascade layers `globals.css` declares, so Tailwind
+  utilities still win. `html:has(.workeee-marketing)` paints the document
+  white behind an overscroll bounce. The font is read as
+  `var(--font-urbanist)` on the root itself, not through a theme token: a token
+  defined on `:root` would resolve before next/font sets the variable.
+- Sections: the hero (one window tall, the board in a frame cut from a second
+  painting, its cards moving) → the logo band "Workeee používají" → a
+  statement → **Jak se s Workeee pracuje** (three steps on the green
+  painting) → **Co je uvnitř** (six feature tiles) → **Nasadíte si to sami**
+  (four steps with copyable commands) → **Zdrojový kód máte celý** →
+  **Poslední změny** → the footer and its small print. `/zmeny` uses the same
+  bar, page head and footer.
+- **Facts are not copy.** Every number, limit, link and command lives in
+  `src/lib/landing.ts`, which imports the repository links from
+  `src/lib/repo.ts` and the changelog directly. Screenshots are in
+  `src/lib/shots.ts` with their real pixel sizes, the paintings and their
+  Wikimedia sources in `src/lib/paintings.ts`. When the app changes a limit,
+  the page changes in the same commit.
+- **What it claims has to be true and allowed.** The logo band says "Workeee
+  používají": the owner confirmed on 2026-10-19 that those five companies use
+  Workeee and agreed to be shown, and a new logo needs the same before it goes
+  in. The footer's small print carries the copyright (`LICENSE` reads "Maxim
+  Kudela and contributors"), the design credit and the Van Gogh credit. The
+  page sets no cookies and loads no analytics (`TRACKING.md`).
+- **Motion stops when asked.** The hero board's loop (a client component that
+  cuts the cards out of the capture and moves them, only while it is on screen
+  and the tab is visible) and the logo marquee both stand still under
+  `prefers-reduced-motion: reduce`; the marquee then wraps as one centred list.
+- **Image qualities are a whitelist.** The board captures load at quality 90
+  and the paintings at 60 (`PAINTING_QUALITY`), so `next.config.ts` lists
+  `images.qualities: [60, 75, 90]`. A quality that is not listed is a 400, and
+  the picture is simply missing.
+- Czech line breaks: `tidy()` (`src/lib/typography.ts`) glues a one-letter
+  preposition to the next word, and `Typo` keeps "e-mail" on one line.
 
 ### The changelog
 
@@ -1528,9 +1509,10 @@ the moment to reconsider, not now.
   items: ["Komentář dá vědět těm, koho zmiňuje, a řešiteli úkolu. …"] }
 ```
 
-Two renderers, one array: `ChangelogSection` takes the first
-`CHANGELOG_PREVIEW_COUNT` for the landing page, `/zmeny` takes all of them
-through `groupChangelogByMonth`. Dates go through `formatIsoDate` /
+Two renderers, one array: `LatestChanges` takes the first
+`CHANGELOG_PREVIEW_COUNT` (`LATEST_CHANGES` in `src/lib/landing.ts`) for the
+landing page, `/zmeny` (`ChangesPage`) takes all of them through
+`groupChangelogByMonth`. Dates go through `formatIsoDate` /
 `formatIsoMonth` (`src/lib/format.ts`, pinned to UTC — a changelog date is a
 calendar day, not a moment, and `new Date("2026-08-10")` read west of Greenwich
 would print the ninth). Counts go through `plural`.
@@ -1542,57 +1524,12 @@ what is now different for them, never which file moved. An internal refactor
 with no user-visible effect deliberately gets nothing — a changelog that logs
 everything is a git log with worse formatting.
 
-## The website (`web/`)
-
-`web/` is the Workeee website, contributed by Jakub Szydlowski
-([@spsJakubSzydlowski](https://github.com/spsJakubSzydlowski)) and copied whole
-from his [workeee-website](https://github.com/spsJakubSzydlowski/workeee-website)
-repository; the README lists him under "Přispěvatelé". It is **a separate
-Next.js project** with its own `package.json`, `pnpm-lock.yaml`, ESLint,
-TypeScript and Tailwind setup. It imports nothing from the app, and the app
-imports nothing from it.
-
-- The app's checks skip it. `tsconfig.json` excludes `web`: otherwise `@/` in
-  its files resolves to this `src/` and `pnpm typecheck` fails on every import,
-  and an installed `web/node_modules` leaks its type declarations in. ESLint
-  ignores `web/**`, and `@source not "../../web"` in `globals.css` keeps
-  Tailwind from scanning its class names into the app's stylesheet.
-- `web/next.config.ts` pins `turbopack.root` to `web/`. Without it Next.js
-  takes the repository's `pnpm-lock.yaml` as the root and compiles the app's
-  `src/proxy.ts` into the website. A local build hides it, because the app's
-  `node_modules` happen to resolve `better-auth`; CI and a Vercel project
-  rooted at `web` have only the website's dependencies and fail. Test a
-  change there in a clean checkout, not in this working tree.
-- It has its own gate, run inside the folder:
-  `pnpm install && pnpm audit --prod && pnpm lint && pnpm typecheck && pnpm build`,
-  and CI runs exactly that as the `website` job. `pnpm dev` serves it on
-  `http://localhost:3210`, beside the app on `:3000`.
-- It deploys as its own Vercel project with **Root Directory `web`**. Set
-  `NEXT_PUBLIC_SITE_URL` there to the website's domain; without it, its
-  canonical links fall back to the project's Vercel production domain.
-- Its facts are copied, not imported: `web/src/lib/changelog.ts` is a copy of
-  `src/lib/changelog.ts`, and `web/src/lib/workeee.ts` restates limits,
-  commands and links from this file and the README. When one side changes,
-  copy the change to the other. The changelog copy is enforced:
-  `src/lib/changelog.test.ts` fails `pnpm test` the moment the two files
-  differ, so a changelog entry is always written to both.
-- **What it claims has to be true and allowed.** The logo band under the hero
-  says "Workeee používají": the owner confirmed on 2026-10-19 that those five
-  companies use Workeee and agreed to be shown, and a new logo needs the same
-  before it goes in. The footer's small print carries the copyright (the
-  LICENSE reads "Maxim Kudela and contributors"), the contributor's credit and
-  the Van Gogh credit; the paintings' sources are in `web/src/lib/photos.ts`.
-  The site sets no cookies and loads no analytics, so it has no consent banner
-  (`TRACKING.md`).
-- Both moving parts, the hero board's loop and the logo band, stand still
-  when the system asks for reduced motion.
-
 ## Design system
 
 **One semantic token system, several moods.** The signed-in application may
 change palette, but components only know `background`, `card`, `primary`,
-`border`, and the rest of the existing vocabulary. See **The public page** for
-its deliberately pinned presentation.
+`border`, and the rest of the existing vocabulary. The public page is the one
+exception, with its own `site-` palette and typeface; see **The public page**.
 
 - Tokens are **HSL channel triples** on `:root` and named `[data-theme]`
   overrides in `src/app/globals.css`, exposed via `@theme inline` as
@@ -1618,12 +1555,14 @@ its deliberately pinned presentation.
   hairline `border-border` on `bg-card` with no shadow; only popovers, dropdowns,
   dialogs and the drawer carry one, tinted through the palette's `--shadow`
   token rather than hardcoded black.
-- **Two typefaces, both self-hosted from `src/app/fonts`, both variable, both a
-  single file**, both wired in `layout.tsx` with `next/font/local`. Nothing is
-  fetched from a font CDN at runtime or at build.
+- **Two typefaces in the app, both self-hosted from `src/app/fonts`, both
+  variable, both a single file**, both wired in `layout.tsx` with
+  `next/font/local`. Nothing is fetched from a font CDN at runtime or at build.
+  The public page adds a third, Urbanist, declared in its own layout so the
+  app never loads it.
   - **Switzer** (`--font-sans`, also `--font-heading`, `wght 100-900`) carries
     everything a person reads. The 14 px label in the rail and the display word
-    on the public page are the same face at two ends of one axis, which is the
+    on the auth screens are the same face at two ends of one axis, which is the
     whole argument for a variable grotesque; it is a cold Swiss neutral that
     holds at 800 on a poster without turning into the rounded-grotesk look. Its
     385 glyphs cover Czech in full.
@@ -1636,17 +1575,15 @@ its deliberately pinned presentation.
   one 28 px line per screen (the page title, through
   `layout/page-header.tsx`, which exists so four screens cannot disagree about
   it), and everything else is 15 px or smaller. That contrast is the hierarchy;
-  nothing in between competes. On the public page the same idea is stretched
-  further: one headline at up to 4.5 rem and then nothing above 3 rem.
+  nothing in between competes.
 - Themes are **hand-rolled and class-compatible**: the pre-hydration script in
   `layout.tsx` reads `localStorage["workeee-theme"]`, writes `data-theme` before
   first paint, and adds `.dark` for the three dark palettes. `useTheme()`
   observes `data-theme` through `useSyncExternalStore`; BlockNote and Sonner get
   the derived light/dark appearance. Old stored values `light` / `dark` migrate
   to Obloha / Soumrak. **No `next-themes`.** The Tailwind variant still matches
-  `.dark` itself; the public page does not use it, because the marketing root
-  overrides the tokens directly and a stored dark palette on `<html>` never
-  reaches it.
+  `.dark` itself; the public page does not use it, because it never reads the
+  app's tokens and a stored dark palette on `<html>` never reaches it.
 - Breakpoint contract: `lg:` (1024 px) splits the desktop sidebar from the
   mobile drawer. One custom breakpoint exists, **`board:` (1408 px)**, declared
   in `globals.css` — it is not about the shell but about the board; see
@@ -1711,24 +1648,23 @@ python3 -c "from PIL import Image; Image.open('f48.png').save('favicon.ico', siz
 
 ### The link previews
 
-`src/lib/og.tsx` draws every unfurl: 1200 × 630, the colors spelled out per
-scheme (Satori never sees `globals.css`) — graphite + lime for the app and the
-invite page, the light Obloha palette for the landing page it now matches. The
-mark and the wordmark sit at the
-top, an optional tag on the right, and at the bottom one short accent rule — the
-same rule the rail draws beside the project you have open — over one big line of
-Switzer Extrabold and an optional muted line under it. Three callers, and none
-of them adds a design:
+`src/lib/og.tsx` draws the app's unfurls: 1200 × 630, the colors spelled out
+(Satori never sees `globals.css`) — graphite + lime. The mark and the wordmark
+sit at the top, an optional tag on the right, and at the bottom one short accent
+rule — the same rule the rail draws beside the project you have open — over one
+big line of Switzer Extrabold and an optional muted line under it. Two callers,
+and neither adds a design. The landing page has a static picture of its own
+hero instead, because its design is not the app's:
 
 | File | What it says |
 |---|---|
 | `src/app/opengraph-image.tsx` | "Interní aplikace pro týmy, projekty a úkoly." — inherited by every route without a closer one |
-| `src/app/(marketing)/o-aplikaci/opengraph-image.tsx` | "Projekty a úkoly pro tým, které si hostujete sami." + one muted line — the landing page only; `/zmeny` inherits the root one |
+| `src/app/(marketing)/o-aplikaci/opengraph-image.jpg` | a still of the hero (the board in its painted frame), with `opengraph-image.alt.txt` beside it — the landing page only; `/zmeny` inherits the root one |
 | `src/app/join/[code]/opengraph-image.tsx` | chip "Pozvánka" + "Připojte se k organizaci" |
 
-The landing page's copy sits in its own file rather than in the root one because
-of the inheritance rule below: a page that declares its own `openGraph` keeps
-only the image **co-located with it**.
+The landing page's picture sits in its own folder rather than in the root one
+because of the inheritance rule below: a page that declares its own `openGraph`
+keeps only the image **co-located with it**.
 
 The invite page gets its own because **an invite link is the one address people
 paste into a chat**. It deliberately names no organization: the unfurl is cached
@@ -1999,10 +1935,36 @@ Day-one decisions:
   owner's name, act with bot ∩ owner access and are never notified. The board
   and comment writes moved into shared actions so the UI and a bot run the
   same code. See **Boti a MCP**.
+- **Phase 25 (done).** A new public page, designed by Jakub Szydlowski
+  (@spsJakubSzydlowski). It arrived as a whole separate Next.js project in
+  `web/` (PR #3) and was then moved into the app as `/o-aplikaci` and
+  `/zmeny`, keeping the page and dropping the scaffolding: one deployment, no
+  copied changelog, facts read from the app. White sheets on two Van Gogh
+  paintings, Urbanist, a hero board whose cards move, a "Workeee používají"
+  logo band confirmed with the owner, copyable deploy commands, and a footer
+  with the copyright, the design credit and the painting credit. See **The
+  public page**.
 - **Later.** List view, due dates, filters in the URL, activity timeline,
   audit log surface.
 
 ## Continual learning
+
+- **A contributed page goes into the app, not beside it.** The public page
+  first arrived as a complete second Next.js project in `web/`, with its own
+  lockfile, Next version and copies of the changelog and the facts. Vercel
+  builds one app per project, so the repo suddenly wanted two projects and had
+  two landing pages, and the nested project took the repo's `pnpm-lock.yaml`
+  as its Turbopack root and compiled the app's `src/proxy.ts` into itself,
+  which passed locally only because the app's `node_modules` were there. Ask
+  for (or port to) components and routes inside the one app.
+- **A theme token defined on `:root` cannot read a variable set further down.**
+  `--font-site: var(--font-urbanist)` resolved on `:root`, where next/font had
+  not set `--font-urbanist` (it sets it on the layout's element), so the token
+  was invalid and the page silently inherited Switzer. Read the next/font
+  variable on the element that carries its class.
+- **`next/image` serves only the qualities `images.qualities` lists.** Asking
+  for `quality={90}` without it is a 400 and an empty frame, and nothing at
+  build time says so; a browser's network panel does.
 
 - **Re-captured marketing shots need the dev image cache cleared.** `next/image`
   caches optimized variants by URL + width + quality, not by file content, and in

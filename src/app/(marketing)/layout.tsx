@@ -1,28 +1,30 @@
+import localFont from "next/font/local";
 import type { ReactNode } from "react";
-import { SiteFooter } from "@/components/marketing/site-footer";
-import { SiteHeader } from "@/components/marketing/site-header";
+import "./marketing.css";
 
 /**
- * The public shell for `/o-aplikaci` and `/zmeny`.
+ * Urbanist carries the public page and nothing else, so it is declared here
+ * rather than in the root layout: the app never downloads it. One variable
+ * file covers the 90 px headline and the 15 px footer; it is subset to Latin
+ * and Latin Extended, which covers Czech (licence in `fonts/Urbanist-OFL.txt`).
+ */
+const urbanist = localFont({
+  src: "../fonts/Urbanist-Variable.woff2",
+  variable: "--font-urbanist",
+  weight: "100 900",
+  display: "swap",
+});
+
+/**
+ * The public shell for `/o-aplikaci` and `/zmeny`. Each page draws its own
+ * bar and footer, because the bar's links are in-page anchors on the landing
+ * page and lead back to it from everywhere else.
  *
- * It presents the product's own light default, the Obloha palette, rather than
- * a palette of its own. That is the point of this build: the page is not a
- * second design system that resembles the product, it *is* the product's light
- * theme, which is why a screenshot of the board drops onto the page with
- * nothing around it and still looks like part of the layout. A visitor whose
- * app theme is dark still sees this page light, because the tokens are
- * overridden here and not on `<html>`.
- *
- * `workeee-marketing` is what `globals.css` hangs the page-only rules off: the
- * token override, the document background behind an overscroll bounce, and the
- * scroll choreography.
+ * `workeee-marketing` is what `marketing.css` hangs the page off: the font,
+ * the ink and white ground, the focus ring and the document background behind
+ * an overscroll bounce. The page has its own palette and does not follow the
+ * visitor's app theme.
  */
 export default function MarketingLayout({ children }: { children: ReactNode }) {
-  return (
-    <div className="workeee-marketing flex min-h-dvh flex-col bg-background text-foreground selection:bg-primary/25">
-      <SiteHeader />
-      <main className="flex-1">{children}</main>
-      <SiteFooter />
-    </div>
-  );
+  return <div className={`workeee-marketing ${urbanist.variable}`}>{children}</div>;
 }

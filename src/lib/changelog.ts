@@ -22,6 +22,16 @@ export type ChangelogEntry = {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    date: "2026-10-19",
+    title: "Nová úvodní stránka",
+    tags: ["Web"],
+    items: [
+      "Úvodní stránka a přehled změn mají nový vzhled. Návrh: Jakub Szydlowski.",
+      "Stránku rámují Van Goghovy malby, v úvodu se úkoly samy přesouvají po nástěnce a pod ní je pruh firem, které Workeee používají.",
+      "Příkazy k nasazení zkopírujete jedním tlačítkem. S omezeným pohybem v systému nástěnka i pruh firem stojí.",
+    ],
+  },
+  {
     date: "2026-10-05",
     title: "Boti v týmu a propojení přes MCP",
     tags: ["Boti"],

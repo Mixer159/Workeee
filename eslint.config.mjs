@@ -14,8 +14,6 @@ const eslintConfig = defineConfig([
     "next-env.d.ts",
     // Convex codegen output.
     "convex/_generated/**",
-    // The website is a separate project with its own lint config.
-    "web/**",
   ]),
 ]);
 
