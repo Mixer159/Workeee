@@ -9,3 +9,5 @@ This version has breaking changes — APIs, conventions, and file structure may 
 Project conventions, stack, auth model, design tokens, domain plan and phase
 roadmap live in **`CLAUDE.md`** in this directory. Read it before touching
 anything, and update it in the same session as any change to a documented fact.
+
+Analytics, ads, consent, legal. See `TRACKING.md`.

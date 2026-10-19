@@ -701,10 +701,10 @@
     }
   }
 
-  /* Logos under the hero: an endless band, at the owner's explicit request
-     (an exception to the page's rule against repeating animation). The
-     track holds the list four times and moves left by one list per loop. The
-     edges fade, so logos slide in and out instead of being cut. */
+  /* Logos under the hero: an endless band (the page's one exception to the
+     rule against repeating animation). The track holds the list four times
+     and moves left by one list per loop. The edges fade, so logos slide in
+     and out instead of being cut. */
   .marquee {
     overflow: hidden;
     mask-image: linear-gradient(to right, transparent, #000 12%, #000 88%, transparent);
@@ -734,16 +734,42 @@
     }
   }
 
-  /* It runs also when the system asks for reduced motion: the owner's
-     Windows has animation effects off and he wants to see the band move.
-     Pausing on hover and focus remains the way to stop it. */
-  .marquee-track {
-    animation: marquee 32s linear infinite;
+  /* Pausing on hover and focus is the way to stop it. When the system asks
+     for reduced motion it never starts: the copies go and the one list
+     wraps, centred. */
+  @media (prefers-reduced-motion: no-preference) {
+    .marquee-track {
+      animation: marquee 32s linear infinite;
+    }
+
+    .marquee:hover .marquee-track,
+    .marquee:focus-within .marquee-track {
+      animation-play-state: paused;
+    }
   }
 
-  .marquee:hover .marquee-track,
-  .marquee:focus-within .marquee-track {
-    animation-play-state: paused;
+  @media (prefers-reduced-motion: reduce) {
+    .marquee {
+      mask-image: none;
+    }
+
+    .marquee-track {
+      width: auto;
+      justify-content: center;
+    }
+
+    /* The files' own transparent margins already part the rows. */
+    .marquee-list {
+      flex-shrink: 1;
+      flex-wrap: wrap;
+      justify-content: center;
+      row-gap: 0;
+      padding-right: 0;
+    }
+
+    .marquee-list[aria-hidden="true"] {
+      display: none;
+    }
   }
 
   /* The cropped name at the foot of the page, as in Linky. Its size is set

@@ -1,6 +1,13 @@
 /**
- * The oil paintings in public/malby: Vincent van Gogh reproductions from
- * Wikimedia Commons, all public domain. Sources are in design/photo-credits.md.
+ * The oil paintings in public/malby: Vincent van Gogh (1853–1890)
+ * reproductions from Wikimedia Commons, public domain, credited in the
+ * footer. Sources:
+ *
+ * - Wheatfield under Thunderclouds, Van Gogh Museum, Amsterdam:
+ *   https://commons.wikimedia.org/wiki/File:Vincent_van_Gogh_-_Wheatfield_under_thunderclouds_-_Google_Art_Project.jpg
+ * - The Plain of Auvers, Belvedere, Vienna:
+ *   https://commons.wikimedia.org/wiki/File:Vincent_van_Gogh_-_Die_Ebene_von_Auvers_-_1007_-_%C3%96sterreichische_Galerie_Belvedere.jpg
+ *
  * They are the only imagery of the pages besides the app's own screenshots.
  * They are decoration with texture that hides compression, so the pages load
  * them at PAINTING_QUALITY rather than the default 75.

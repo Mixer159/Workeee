@@ -59,6 +59,8 @@ Version pins that matter:
   library. Its cost is two lines in `globals.css`, and they are not
   interchangeable — see **The task body editor**.
 
+Analytics, ads, consent, legal. See `TRACKING.md`.
+
 ## Commands
 
 ```bash
@@ -282,6 +284,7 @@ public/marketing/        # the captures of the running app the page is built on
 web/                     # the Workeee website: a separate Next.js project with
                          # its own dependencies and checks, see **The website**
 LICENSE                  # MIT. The public page claims it, so it has to be here
+TRACKING.md              # analytics, consent and legal state (none tracked)
 ```
 
 No barrel files, no `index.ts` re-exports — import by full path.
@@ -1541,11 +1544,13 @@ everything is a git log with worse formatting.
 
 ## The website (`web/`)
 
-`web/` is the Workeee website, copied whole from
-[spsJakubSzydlowski/workeee-website](https://github.com/spsJakubSzydlowski/workeee-website).
-It is **a separate Next.js project** with its own `package.json`,
-`pnpm-lock.yaml`, ESLint, TypeScript and Tailwind setup. It imports nothing
-from the app, and the app imports nothing from it.
+`web/` is the Workeee website, contributed by Jakub Szydlowski
+([@spsJakubSzydlowski](https://github.com/spsJakubSzydlowski)) and copied whole
+from his [workeee-website](https://github.com/spsJakubSzydlowski/workeee-website)
+repository; the README lists him under "Přispěvatelé". It is **a separate
+Next.js project** with its own `package.json`, `pnpm-lock.yaml`, ESLint,
+TypeScript and Tailwind setup. It imports nothing from the app, and the app
+imports nothing from it.
 
 - The app's checks skip it. `tsconfig.json` excludes `web`: otherwise `@/` in
   its files resolves to this `src/` and `pnpm typecheck` fails on every import,
@@ -1553,15 +1558,28 @@ from the app, and the app imports nothing from it.
   ignores `web/**`, and `@source not "../../web"` in `globals.css` keeps
   Tailwind from scanning its class names into the app's stylesheet.
 - It has its own gate, run inside the folder:
-  `pnpm install && pnpm lint && pnpm typecheck && pnpm build`. `pnpm dev`
-  serves it on `http://localhost:3210`, beside the app on `:3000`.
+  `pnpm install && pnpm audit --prod && pnpm lint && pnpm typecheck && pnpm build`,
+  and CI runs exactly that as the `website` job. `pnpm dev` serves it on
+  `http://localhost:3210`, beside the app on `:3000`.
 - It deploys as its own Vercel project with **Root Directory `web`**. Set
   `NEXT_PUBLIC_SITE_URL` there to the website's domain; without it, its
   canonical links fall back to the project's Vercel production domain.
 - Its facts are copied, not imported: `web/src/lib/changelog.ts` is a copy of
   `src/lib/changelog.ts`, and `web/src/lib/workeee.ts` restates limits,
   commands and links from this file and the README. When one side changes,
-  copy the change to the other.
+  copy the change to the other. The changelog copy is enforced:
+  `src/lib/changelog.test.ts` fails `pnpm test` the moment the two files
+  differ, so a changelog entry is always written to both.
+- **What it claims has to be true and allowed.** The logo band under the hero
+  says "Workeee používají": the owner confirmed on 2026-10-19 that those five
+  companies use Workeee and agreed to be shown, and a new logo needs the same
+  before it goes in. The footer's small print carries the copyright (the
+  LICENSE reads "Maxim Kudela and contributors"), the contributor's credit and
+  the Van Gogh credit; the paintings' sources are in `web/src/lib/photos.ts`.
+  The site sets no cookies and loads no analytics, so it has no consent banner
+  (`TRACKING.md`).
+- Both moving parts, the hero board's loop and the logo band, stand still
+  when the system asks for reduced motion.
 
 ## Design system
 

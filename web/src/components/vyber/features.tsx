@@ -174,7 +174,7 @@ export function Features() {
       <div className="mx-auto max-w-2xl text-center">
         <h2 className="display-section">{FEATURES_INTRO.title}</h2>
         <p className="mt-5 text-lg leading-relaxed text-muted">
-          {tidy("Žádné makety. Každý snímek obrazovky na této stránce je z běžící aplikace.")}
+          {tidy(FEATURES_INTRO.note)}
         </p>
       </div>
 

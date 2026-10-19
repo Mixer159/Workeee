@@ -90,7 +90,9 @@ pnpm dev
 ```
 
 Poběží na `http://localhost:3210`. Na Vercelu se nasazuje jako samostatný
-projekt s kořenovou složkou (Root Directory) `web`.
+projekt s kořenovou složkou (Root Directory) `web`. Kopii changelogu ve
+`web/src/lib/changelog.ts` hlídá test: když se liší od `src/lib/changelog.ts`,
+`pnpm test` selže.
 
 ## Struktura a pravidla
 
@@ -101,6 +103,12 @@ designové tokeny a roadmapa — je v [`CLAUDE.md`](./CLAUDE.md). Při změně
 dokumentovaného faktu aktualizujte ve stejném commitu i tento soubor. Změnu,
 které si všimne uživatel, zapište i do `src/lib/changelog.ts`; vykresluje se na
 veřejné stránce a na `/zmeny`.
+
+## Přispěvatelé
+
+- [Maxim Kudela](https://github.com/Mixer159): aplikace
+- [Jakub Szydlowski](https://github.com/spsJakubSzydlowski): webová prezentace
+  ve složce `web/`
 
 ## Licence
 

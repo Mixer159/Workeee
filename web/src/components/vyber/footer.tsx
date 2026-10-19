@@ -1,6 +1,6 @@
 import { Mark } from "@/components/shared/mark";
 import { tidy } from "@/lib/typography";
-import { ACTIONS, HERO, LINKS, SITE } from "@/lib/workeee";
+import { ACTIONS, CREDITS, HERO, LINKS, SITE } from "@/lib/workeee";
 import { externalProps } from "./button-link";
 import { CHANGES_HREF, type Page } from "./nav";
 
@@ -31,8 +31,9 @@ function columns(base: string) {
 
 /**
  * The light grey close of the page, laid out after the footer of the Linky variant:
- * the mark and the three claims, three columns of links, and the name cut
- * off by the bottom edge.
+ * the mark and the three claims, three columns of links, the small print
+ * (copyright, who built the site, the paintings), and the name cut off by
+ * the bottom edge.
  */
 export function Footer({ page = "home" }: { page?: Page }) {
   const COLUMNS = columns(page === "home" ? "" : "/");
@@ -71,6 +72,18 @@ export function Footer({ page = "home" }: { page?: Page }) {
             ))}
           </nav>
         </div>
+
+        <p className="flex flex-wrap gap-x-6 gap-y-1 border-t border-ink/10 py-6 text-sm text-muted">
+          <span>{CREDITS.copyright}</span>
+          <a
+            href={CREDITS.website.href}
+            {...externalProps(CREDITS.website.href)}
+            className="transition-[color] duration-150 hover:text-ink"
+          >
+            {CREDITS.website.label}
+          </a>
+          <span>{CREDITS.paintings}</span>
+        </p>
 
         {/* Decoration only: the name is already in the footer as text. The
             word is drawn by CSS from data-word, so contrast checks, which

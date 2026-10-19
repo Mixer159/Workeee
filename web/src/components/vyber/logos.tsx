@@ -2,8 +2,9 @@ import Image from "next/image";
 
 /**
  * Five logos, each linking to its site. The files are 500 x 200 with a
- * transparent ground and come from chciweeeb.cz/loga. The row has no label:
- * what these companies have to do with Workeee is for the owner to state.
+ * transparent ground and come from chciweeeb.cz/loga. The heading claims
+ * these companies use Workeee: the owner confirmed on 2026-10-19 that they do
+ * and that they agreed to be shown. A logo added here needs the same.
  */
 const LOGOS = [
   { name: "Fitboost", file: "fitboost", href: "https://fitboost.me" },
@@ -46,14 +47,18 @@ function LogoList({ copy }: { copy?: boolean }) {
  * The logos under the hero as an endless band. The list is there four times
  * (one list is narrower than a wide screen) and the track moves left by
  * exactly one list, so the loop has no seam. It pauses while the pointer or
- * the keyboard focus is on it (see .marquee in vyber.css). The logo files
+ * the keyboard focus is on it, and stands still as one centred list when the
+ * system asks for reduced motion (see .marquee in vyber.css). The logo files
  * carry a transparent margin of about 35 % of their height above and below
  * the artwork, so the band's own padding stays small.
  */
 export function Logos() {
   return (
-    <section aria-label="Loga" className="bg-surface pt-8 lg:pt-10">
-      <div className="marquee">
+    <section aria-labelledby="loga-title" className="bg-surface pt-8 lg:pt-10">
+      <h2 id="loga-title" className="wrap text-center text-[0.9375rem] font-medium text-muted">
+        Workeee používají
+      </h2>
+      <div className="marquee mt-2">
         <div className="marquee-track">
           <LogoList />
           <LogoList copy />

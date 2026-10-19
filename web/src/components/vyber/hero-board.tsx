@@ -11,11 +11,19 @@ const countFont = JetBrains_Mono({ subsets: ["latin"], weight: "400", display: "
 /** The hero shows the desktop capture from this width up (see BoardPicture). */
 const WIDE = "(min-width: 768px)";
 
-function subscribeWide(onChange: () => void) {
-  const query = window.matchMedia(WIDE);
-  query.addEventListener("change", onChange);
-  return () => query.removeEventListener("change", onChange);
+/** People who ask their system for less motion get the still capture. */
+const REDUCED = "(prefers-reduced-motion: reduce)";
+
+function subscribeQuery(media: string) {
+  return (onChange: () => void) => {
+    const query = window.matchMedia(media);
+    query.addEventListener("change", onChange);
+    return () => query.removeEventListener("change", onChange);
+  };
 }
+
+const subscribeWide = subscribeQuery(WIDE);
+const subscribeReduced = subscribeQuery(REDUCED);
 
 function subscribeVisibility(onChange: () => void) {
   document.addEventListener("visibilitychange", onChange);
@@ -234,13 +242,13 @@ function BoardStage({ capture, src, playing }: { capture: BoardCapture; src: str
  * way a card is dragged in the app. The capture itself stays the picture
  * (server-rendered, with its alt text); over it lies a layer of cards cut out
  * of the same image, which moves and, at the end of each loop, fades back to
- * the capture. The loop runs only while the board is on screen and the tab
- * is visible, and it does not wait for prefers-reduced-motion: the owner has
- * animation effects off and wants to see it.
+ * the capture. The loop runs only while the board is on screen, the tab is
+ * visible and the system does not ask for reduced motion.
  */
 export function HeroBoard({ className, children }: { className: string; children: ReactNode }) {
   const frame = useRef<HTMLDivElement>(null);
   const wide = useSyncExternalStore(subscribeWide, () => window.matchMedia(WIDE).matches, () => null);
+  const reduced = useSyncExternalStore(subscribeReduced, () => window.matchMedia(REDUCED).matches, () => true);
   const visible = useSyncExternalStore(
     subscribeVisibility,
     () => document.visibilityState === "visible",
@@ -279,7 +287,9 @@ export function HeroBoard({ className, children }: { className: string; children
   return (
     <div ref={frame} className={className}>
       {children}
-      {ready && <BoardStage key={`${capture.name} ${src}`} capture={capture} src={src} playing={onScreen && visible} />}
+      {ready && !reduced && (
+        <BoardStage key={`${capture.name} ${src}`} capture={capture} src={src} playing={onScreen && visible} />
+      )}
     </div>
   );
 }

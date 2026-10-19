@@ -36,10 +36,12 @@ function BoardPicture() {
   return (
     <picture>
       <source media="(min-width: 768px)" srcSet={desktop.props.srcSet} sizes={desktop.props.sizes} />
-      {/* A plain img inside the picture: next/image cannot switch between two sources. */}
+      {/* A plain img inside the picture: next/image cannot switch between two sources.
+          Its one alt has to fit both files, and the board's own does: the phone
+          capture shows the same board. */}
       <img
         {...phone.props}
-        alt={SHOTS.boardMobile.alt}
+        alt={SHOTS.board.alt}
         className="absolute inset-0 block size-full object-cover object-left-top"
       />
     </picture>

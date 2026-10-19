@@ -1,12 +1,10 @@
 /**
- * Every fact and every sentence the design variants share.
+ * Every fact the pages state: numbers, limits, links and commands.
  *
- * The text comes from the original site (workeeeweb.vercel.app), the app's own
- * public page (workeee.vercel.app/o-aplikaci) and its repository
- * (github.com/Mixer159/Workeee: README, CLAUDE.md, changelog). Nothing here is
- * invented. A variant may write its own headings and intros, but numbers,
- * limits, links and commands are read from this file so they are the same on
- * every page.
+ * The text comes from the app's own public page (workeee.vercel.app/o-aplikaci)
+ * and its repository (README, CLAUDE.md, changelog). Nothing here is invented,
+ * and it has to change when the app does; see "The website" in the root
+ * CLAUDE.md.
  */
 import { CHANGELOG, type ChangelogEntry } from "@/lib/changelog";
 
@@ -24,13 +22,21 @@ export const LINKS = {
   issues: "https://github.com/Mixer159/Workeee/issues",
   license: "https://github.com/Mixer159/Workeee/blob/main/LICENSE",
   /** The production app. The pages only link to it. */
-  app: "https://workeee.vercel.app",
   login: "https://workeee.vercel.app/prihlaseni",
-  /** Full changelog on the original site. */
-  changelog: "https://workeeeweb.vercel.app/zmeny",
 } as const;
 
-/** One label per action, the same on every variant. */
+/**
+ * The footer's small print. The repository's LICENSE holds the copyright;
+ * this site came in as a contribution, and the paintings are public domain
+ * (sources in src/lib/photos.ts).
+ */
+export const CREDITS = {
+  copyright: "© 2026 Maxim Kudela a přispěvatelé",
+  website: { label: "Web: Jakub Szydlowski", href: "https://github.com/spsJakubSzydlowski" },
+  paintings: "Malby: Vincent van Gogh, volné dílo",
+} as const;
+
+/** One label per action, the same on every page. */
 export const ACTIONS = {
   repo: "Otevřít na GitHubu",
   deploy: "Nasazení krok za krokem",
@@ -43,7 +49,6 @@ export const ACTIONS = {
 export const HERO = {
   /** Two lines; the second is the one the original site sets in its accent. */
   headline: ["Týmová nástěnka,", "která běží u vás"],
-  lead: "Projekty, úkoly, komentáře a přílohy na jednom místě.",
   leadLong:
     "Projekty, úkoly, komentáře a přílohy na jednom místě. Nasadíte si ji na vlastní Convex a Vercel, takže data máte pod kontrolou.",
   claims: [
@@ -84,47 +89,11 @@ export const SHOTS = {
     height: 1800,
     alt: "Nástěnka s otevřeným panelem úkolu Redesign úvodní sekce vpravo.",
   },
-  editor: {
-    src: "/screenshots/editor.png",
-    width: 1186,
-    height: 1730,
-    alt: "Popis úkolu s otevřenou nabídkou bloků po napsání lomítka.",
-  },
-  prace: {
-    src: "/screenshots/prace.png",
-    width: 2880,
-    height: 1800,
-    alt: "Pracovní režim: úkoly napříč projekty vlevo, otevřený detail úkolu uprostřed.",
-  },
-  palette: {
-    src: "/screenshots/palette.png",
-    width: 2880,
-    height: 1800,
-    alt: "Příkazová paleta s posledními úkoly nad ztlumeným pracovním režimem.",
-  },
   comments: {
     src: "/screenshots/comments.png",
     width: 1182,
     height: 994,
     alt: "Vlákno komentářů pod úkolem se zmínkou konkrétního člověka.",
-  },
-  upozorneni: {
-    src: "/screenshots/upozorneni.png",
-    width: 2880,
-    height: 1800,
-    alt: "Přehled upozornění: zmínka v komentáři od Marka u úkolu Galerie realizací s lazy loadingem.",
-  },
-  prehled: {
-    src: "/screenshots/prehled.png",
-    width: 2880,
-    height: 1800,
-    alt: "Přehled projektů organizace jako karty.",
-  },
-  vzhledy: {
-    src: "/screenshots/vzhledy.png",
-    width: 510,
-    height: 780,
-    alt: "Nabídka uživatele s výběrem šesti vzhledů od Oblohy po Švestku.",
   },
   featureStavy: {
     src: "/screenshots/features/stavy.png",
@@ -207,13 +176,10 @@ export const FEATURES: Feature[] = [
 
 export const FEATURES_INTRO = {
   title: "Co je uvnitř",
-  note: "Žádné makety. Každý obrázek na této stránce je snímek běžící aplikace.",
+  note: "Žádné makety. Každý snímek obrazovky na této stránce je z běžící aplikace.",
 } as const;
 
-/**
- * The four screens a person works in all day, from the app's own public page
- * ("Podívejte se dovnitř").
- */
+/** The screens the "Jak se s Workeee pracuje" steps borrow their text from. */
 export const SURFACES: Feature[] = [
   {
     id: "drawer",
@@ -222,49 +188,10 @@ export const SURFACES: Feature[] = [
     shot: SHOTS.drawer,
   },
   {
-    id: "editor",
-    title: "Popis jako dokument",
-    body: "Blokový editor s nadpisy, seznamy a obrázky. Lomítko otevře nabídku bloků a ukládá se sám.",
-    shot: SHOTS.editor,
-  },
-  {
-    id: "prace",
-    title: "Pracovní režim",
-    body: "Nejnovější úkoly ze všech projektů a organizací v jednom panelu. Otevřený úkol upravujete vedle něj.",
-    shot: SHOTS.prace,
-  },
-  {
     id: "komentare",
     title: "Komentáře se zmínkami",
     body: "Diskuse přímo u úkolu, s přílohami. Zmínka @ jménem pošle dotyčnému upozornění.",
     shot: SHOTS.comments,
-  },
-];
-
-/** Smaller capabilities, each taken from a changelog entry. Bots have no capture. */
-export const EXTRAS: (Omit<Feature, "shot"> & { shot?: Shot })[] = [
-  {
-    id: "paleta",
-    title: "Nový úkol přes ⌘K",
-    body: "V pracovním režimu založíte úkol z klávesnice: vyberete projekt a napíšete název.",
-    shot: SHOTS.palette,
-  },
-  {
-    id: "boti",
-    title: "Boti přes MCP",
-    body: "Bot se připojí osobním API tokenem přes MCP server. Zakládá a přesouvá úkoly, přiřazuje je a píše komentáře pod svým jménem a nikdy nesmí víc než jeho vlastník.",
-  },
-  {
-    id: "kanal",
-    title: "Nepřečtené na jednom místě",
-    body: "Stránka Upozornění sbírá nové úkoly, přiřazení, zmínky a komentáře. Karta úkolu ukazuje počet nepřečtených komentářů.",
-    shot: SHOTS.upozorneni,
-  },
-  {
-    id: "prehled",
-    title: "Přehled projektů",
-    body: "Projekty organizace jako karty. U každého je vidět, v kolika úkolech je něco nového.",
-    shot: SHOTS.prehled,
   },
 ];
 
@@ -319,168 +246,6 @@ export const DEPLOY = {
 export const OPEN_SOURCE = {
   title: "Zdrojový kód máte celý",
   body: "Licence MIT, jeden repozitář, žádná uzavřená část. Next.js, Convex a Better Auth; nic dalšího si nikde nezakládáte. Chybí vám něco, nebo jste našli chybu? Založte issue, nebo rovnou pošlete pull request. Kód je psaný tak, aby se v něm dalo číst: každé rozhodnutí, které by jinak vypadalo náhodně, má v repozitáři napsáno proč.",
-  /** The same paragraph as separate statements, for layouts that list them. */
-  points: [
-    "Licence MIT, jeden repozitář, žádná uzavřená část.",
-    "Next.js, Convex a Better Auth; nic dalšího si nikde nezakládáte.",
-    "Chybí vám něco, nebo jste našli chybu? Založte issue, nebo rovnou pošlete pull request.",
-    "Každé rozhodnutí, které by jinak vypadalo náhodně, má v repozitáři napsáno proč.",
-  ],
-} as const;
-
-/** What the app is built on, with the job each part does (from the README). */
-export const STACK = [
-  { name: "Next.js", role: "frontend" },
-  { name: "Convex", role: "databáze, serverové funkce a úložiště" },
-  { name: "Better Auth", role: "registrace, přihlášení a relace" },
-  { name: "Vercel", role: "hosting frontendu" },
-  { name: "Tailwind CSS", role: "styly" },
-  { name: "TypeScript", role: "jazyk" },
-] as const;
-
-/** Limits and counts stated on the original site, for layouts that set numbers large. */
-export const NUMBERS = [
-  { value: "3", label: "sloupce, se kterými začne každý projekt" },
-  { value: "12", label: "stavů nejvýš na jedné nástěnce" },
-  { value: "10 MB", label: "na soubor u úkolu i v komentáři" },
-  { value: "6 h až 30 dnů", label: "platnost jednorázové pozvánky" },
-  { value: "8 = 1", label: "osm změn za sebou je jeden e-mail" },
-  { value: "6", label: "vzhledů, tři světlé a tři tmavé" },
-  { value: "4", label: "kroky od klonu po nasazení" },
-  { value: "MIT", label: "licence celého repozitáře" },
-] as const;
-
-/** The three roles, as the access model in the repository defines them. */
-export const ROLES = [
-  {
-    name: "Vlastník",
-    body: "Spravuje organizaci, členy, pozvánky a nastavení projektů. Jako jediný smí organizaci smazat a předat roli vlastníka dál.",
-  },
-  {
-    name: "Správce",
-    body: "Spravuje nastavení organizace, členy, pozvánky a nastavení projektů. Organizaci vede, ale smazat ji nemůže.",
-  },
-  {
-    name: "Člen",
-    body: "Pracuje s úkoly a stavy na nástěnce. Vidí celou organizaci, nebo jen projekty, do kterých ho někdo pozval.",
-  },
-] as const;
-
-/**
- * Who may do what, row by row, in the order of ROLES. From the access model:
- * the board is a shared working surface, owners and admins manage, and only an
- * owner hands out the owner role or deletes the organization.
- */
-export const ROLE_MATRIX = {
-  note: "Kdo organizaci založí, je její vlastník.",
-  rows: [
-    { capability: "Úkoly a stavy na nástěnce", allowed: [true, true, true] },
-    { capability: "Nastavení organizace a projektů", allowed: [true, true, false] },
-    { capability: "Členové a pozvánky", allowed: [true, true, false] },
-    { capability: "Předání role vlastníka", allowed: [true, false, false] },
-    { capability: "Smazání organizace", allowed: [true, false, false] },
-  ],
-} as const;
-
-/** Questions a visitor has, each answered by a fact from the sources above. */
-export const FAQ = [
-  {
-    question: "Kolik stojí další člen týmu?",
-    answer: "Nic. Workeee je open source pod licencí MIT a za členy týmu se neplatí.",
-  },
-  {
-    question: "Kde jsou naše data?",
-    answer: "Ve vašem vlastním deploymentu Convexu. Frontend běží na vašem Vercelu.",
-  },
-  {
-    question: "Co potřebuji k nasazení?",
-    answer: "Node 20 nebo novější a pnpm. Čtyři kroky a aplikace běží, bez jediného účtu navíc.",
-  },
-  {
-    question: "Jak pozvu kolegy?",
-    answer: "Odkazem na jedno použití, platným šest hodin až třicet dnů. Do celé organizace, nebo do jednoho projektu.",
-  },
-  {
-    question: "Kdo co vidí?",
-    answer: "Role jsou vlastník, správce a člen. Člen vidí celou organizaci, nebo jen projekty, do kterých ho někdo pozval.",
-  },
-  {
-    question: "Jak velké soubory lze přiložit?",
-    answer: "Do deseti megabajtů, u úkolu i v komentáři.",
-  },
-  {
-    question: "Chodí upozornění e-mailem?",
-    answer: "Ano, po dávkách: osm změn za sebou je jedna zpráva. Odesílání přes Brevo je volitelné, bez něj se e-maily jen neodesílají.",
-  },
-  {
-    question: "Dá se změnit vzhled?",
-    answer: "Šest vzhledů, tři světlé a tři tmavé. Výběr se pamatuje v prohlížeči.",
-  },
-  {
-    question: "Můžu si aplikaci upravit?",
-    answer: "Ano. Jeden repozitář pod licencí MIT, žádná uzavřená část. Issues i pull requesty jsou vítané.",
-  },
-] as const;
-
-/**
- * The demo content visible in the real screenshots, for HTML recreations of
- * the board. Use it instead of inventing tasks or people, so a rebuilt board
- * matches the captures next to it. Status colours are the app's own defaults.
- */
-export const DEMO = {
-  organization: "Rovina",
-  project: "Web pro Zátiší",
-  people: [
-    { name: "Tereza Havlíčková", initials: "TH" },
-    { name: "Marek Doubrava", initials: "MD" },
-  ],
-  columns: [
-    {
-      name: "To-do",
-      color: "#6b7280",
-      tasks: [
-        { title: "Přepsat texty na stránce o nás" },
-        { title: "Vyladit kontrast v patičce", assignee: "MD" },
-        { title: "Doplnit alt texty k fotkám z ateliéru" },
-        { title: "Připravit 404 stránku", assignee: "TH" },
-        { title: "Sjednotit velikosti nadpisů napříč sekcemi" },
-        { title: "Export loga ve formátu SVG" },
-      ],
-    },
-    {
-      name: "V průběhu",
-      color: "#3b82f6",
-      tasks: [
-        { title: "Redesign úvodní sekce", assignee: "MD" },
-        { title: "Napojit formulář na e-mail", assignee: "MD" },
-        { title: "Galerie realizací s lazy loadingem", assignee: "TH" },
-      ],
-    },
-    {
-      name: "Hotovo",
-      color: "#22c55e",
-      tasks: [
-        { title: "Nasadit staging na Vercel" },
-        { title: "Vybrat typografii" },
-        { title: "Nastavit doménu a certifikát" },
-        { title: "Základní layout" },
-      ],
-    },
-  ],
-  /** The nine colours a custom status can take. */
-  statusColors: [
-    { name: "Šedá", value: "#6b7280" },
-    { name: "Modrá", value: "#3b82f6" },
-    { name: "Indigová", value: "#6366f1" },
-    { name: "Fialová", value: "#8b5cf6" },
-    { name: "Jantarová", value: "#f59e0b" },
-    { name: "Oranžová", value: "#f97316" },
-    { name: "Červená", value: "#ef4444" },
-    { name: "Zelená", value: "#22c55e" },
-    { name: "Tyrkysová", value: "#14b8a6" },
-  ],
-  /** Expiry choices of an invite link, labelled as in the app; seven days is the default. */
-  inviteExpiry: ["6 hodin", "24 hodin", "48 hodin", "7 dní", "30 dní"],
 } as const;
 
 export { CHANGELOG, type ChangelogEntry };

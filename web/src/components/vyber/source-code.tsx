@@ -27,9 +27,7 @@ export function SourceCode() {
       <div className="wrap">
       <div className="grid gap-12 rounded-panel bg-surface p-7 sm:p-10 lg:grid-cols-12 lg:items-center lg:gap-x-16 lg:p-16">
         <div className="lg:col-span-6">
-          <h2 className="display-section">
-            Zdrojový kód máte celý
-          </h2>
+          <h2 className="display-section">{OPEN_SOURCE.title}</h2>
           <p className="mt-6 max-w-[34rem] text-lg leading-relaxed text-pretty text-muted">
             {tidy(OPEN_SOURCE.body)}
           </p>
