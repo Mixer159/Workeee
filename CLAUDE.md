@@ -1557,6 +1557,12 @@ imports nothing from it.
   and an installed `web/node_modules` leaks its type declarations in. ESLint
   ignores `web/**`, and `@source not "../../web"` in `globals.css` keeps
   Tailwind from scanning its class names into the app's stylesheet.
+- `web/next.config.ts` pins `turbopack.root` to `web/`. Without it Next.js
+  takes the repository's `pnpm-lock.yaml` as the root and compiles the app's
+  `src/proxy.ts` into the website. A local build hides it, because the app's
+  `node_modules` happen to resolve `better-auth`; CI and a Vercel project
+  rooted at `web` have only the website's dependencies and fail. Test a
+  change there in a clean checkout, not in this working tree.
 - It has its own gate, run inside the folder:
   `pnpm install && pnpm audit --prod && pnpm lint && pnpm typecheck && pnpm build`,
   and CI runs exactly that as the `website` job. `pnpm dev` serves it on
