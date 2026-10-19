@@ -1,6 +1,10 @@
 @import "tailwindcss";
 @import "tw-animate-css";
 
+/* The website in `web/` is a separate project with its own Tailwind build.
+ * Without this, its class names would be scanned into the app's stylesheet. */
+@source not "../../web";
+
 /*
  * BlockNote needs **both** of the next two lines, and they do different jobs.
  *

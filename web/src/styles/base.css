@@ -1,0 +1,32 @@
+/* Shared by every design variant: document defaults and the focus ring. */
+@layer base {
+  html {
+    font-optical-sizing: auto;
+    -webkit-text-size-adjust: 100%;
+    text-size-adjust: 100%;
+  }
+
+  /* A link to a section lands on the section's top edge, because every
+     section's own top padding already clears the floating bar. What the bar
+     can hide is a control that keyboard focus scrolls into view, so only
+     controls stop 6rem below the top. */
+  :is(a, button, input, select, textarea, [tabindex]) {
+    scroll-margin-top: 6rem;
+  }
+
+  body {
+    -webkit-font-smoothing: antialiased;
+  }
+
+  /* Each variant sets --focus to a colour that stays visible on its backgrounds. */
+  :focus-visible {
+    outline: 2px solid var(--focus, currentColor);
+    outline-offset: 3px;
+  }
+
+  @media (prefers-reduced-motion: no-preference) {
+    html {
+      scroll-behavior: smooth;
+    }
+  }
+}
