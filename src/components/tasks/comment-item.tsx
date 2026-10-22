@@ -29,6 +29,7 @@ import {
   segmentsToDraft,
   type CommentDraft,
 } from "@/lib/comment-draft";
+import { saveFile } from "@/lib/file-download";
 import { formatFileSize, formatRelativeTime } from "@/lib/format";
 import { userInitials } from "@/lib/user";
 
@@ -191,11 +192,12 @@ export function CommentItem({
                   />
                 </button>
               ) : (
-                <a
+                <button
                   key={file._id}
-                  href={file.url ?? "#"}
-                  target="_blank"
-                  rel="noreferrer"
+                  type="button"
+                  aria-label={`Stáhnout ${file.fileName}`}
+                  disabled={!file.url}
+                  onClick={() => file.url && saveFile(file.url, file.fileName)}
                   className="flex items-center gap-2 rounded-lg border border-border px-2.5 py-1.5 transition-colors hover:bg-accent"
                 >
                   <FileTypeIcon
@@ -208,7 +210,7 @@ export function CommentItem({
                   <span className="text-xs text-muted-foreground">
                     {formatFileSize(file.size)}
                   </span>
-                </a>
+                </button>
               ),
             )}
           </div>

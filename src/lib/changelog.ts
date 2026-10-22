@@ -22,6 +22,15 @@ export type ChangelogEntry = {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    date: "2026-10-22",
+    title: "Soubory se stahují pod svým jménem",
+    tags: ["Soubory"],
+    items: [
+      "Stažení přílohy, souboru v komentáři i souboru v popisu úkolu uloží soubor pod jeho původním názvem a s příponou.",
+      "Textové soubory se už neotevírají v prohlížeči s rozbitou diakritikou, ale stáhnou se tak, jak byly nahrané.",
+    ],
+  },
+  {
     date: "2026-10-19",
     title: "Nová úvodní stránka",
     tags: ["Web"],

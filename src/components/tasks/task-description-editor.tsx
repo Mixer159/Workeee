@@ -2,13 +2,19 @@
 
 import { useCallback, useEffect, useRef } from "react";
 import type { Block, PartialBlock } from "@blocknote/core";
-import { useCreateBlockNote } from "@blocknote/react";
+import {
+  FormattingToolbar,
+  FormattingToolbarController,
+  getFormattingToolbarItems,
+  useCreateBlockNote,
+} from "@blocknote/react";
 import { BlockNoteView } from "@blocknote/shadcn";
 import { useMutation } from "convex/react";
 import { toast } from "sonner";
 import { api } from "@convex/_generated/api";
 import type { Id } from "@convex/_generated/dataModel";
 import { parseTaskContent } from "@convex/lib/taskContent";
+import { EditorFileDownloadButton } from "@/components/tasks/editor-file-download-button";
 import { useTheme } from "@/hooks/use-theme";
 import { blocknoteCs } from "@/lib/blocknote-cs";
 import type { SaveState } from "@/lib/save-state";
@@ -116,7 +122,14 @@ export function TaskDescriptionEditor({
 
   return (
     <section className="workeee-editor">
-      <BlockNoteView editor={editor} theme={appearance} onChange={handleChange} />
+      <BlockNoteView
+        editor={editor}
+        theme={appearance}
+        onChange={handleChange}
+        formattingToolbar={false}
+      >
+        <FormattingToolbarController formattingToolbar={TaskFormattingToolbar} />
+      </BlockNoteView>
     </section>
   );
 }
@@ -132,4 +145,19 @@ function parseContent(raw: string | null): PartialBlock[] | undefined {
   }
   const parsed = parseTaskContent(raw);
   return parsed && parsed.length > 0 ? (parsed as PartialBlock[]) : undefined;
+}
+
+/** BlockNote's default toolbar with our download button swapped in. */
+function TaskFormattingToolbar() {
+  return (
+    <FormattingToolbar>
+      {getFormattingToolbarItems().map((item) =>
+        item.key === "fileDownloadButton" ? (
+          <EditorFileDownloadButton key={item.key} />
+        ) : (
+          item
+        ),
+      )}
+    </FormattingToolbar>
+  );
 }

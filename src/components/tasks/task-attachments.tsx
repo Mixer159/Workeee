@@ -12,6 +12,7 @@ import {
   type LightboxImage,
 } from "@/components/tasks/image-lightbox";
 import { Button } from "@/components/ui/button";
+import { saveFile } from "@/lib/file-download";
 import { formatFileSize } from "@/lib/format";
 import { uploadTaskFile } from "@/lib/upload";
 
@@ -130,15 +131,14 @@ export function TaskAttachments({ taskId }: { taskId: Id<"tasks"> }) {
               </div>
 
               {file.url ? (
-                <Button variant="ghost" size="icon-sm" asChild>
-                  <a
-                    href={file.url}
-                    target="_blank"
-                    rel="noreferrer"
-                    aria-label={`Stáhnout ${file.fileName}`}
-                  >
-                    <DownloadIcon />
-                  </a>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon-sm"
+                  aria-label={`Stáhnout ${file.fileName}`}
+                  onClick={() => saveFile(file.url!, file.fileName)}
+                >
+                  <DownloadIcon />
                 </Button>
               ) : null}
               {file.canRemove ? (

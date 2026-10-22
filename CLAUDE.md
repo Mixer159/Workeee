@@ -270,13 +270,15 @@ src/
                          # task-attachments, task-comments, comment-composer,
                          # comment-item, comment-body, comment-reactions,
                          # mention-textarea,
-                         # file-type-icon, image-lightbox
+                         # file-type-icon, image-lightbox,
+                         # editor-file-download-button
     workspace/           # shell, provider, rail, command menu, task list, canvas
   hooks/                 # use-current-user, use-current-organization, use-theme,
                          # use-now, use-autosave-text, use-workspace-rail-width,
                          # use-presence-heartbeat
   lib/                   # auth-client, auth-redirect, auth-server, auth-errors,
                          # blocknote-cs, changelog, clipboard, comment-draft,
+                         # file-download,
                          # current-organization, format, invites, landing, mcp,
                          # og, organization, paintings, presence, project-emojis,
                          # project-icons, repo, save-state, shots,
@@ -972,6 +974,16 @@ same rule.
 
 `tasks.remove` cascades: the body row, every file (blob included), every comment
 and every reaction go with the task.
+
+**Downloading never links to the storage URL.** Convex serves a blob at
+`/api/storage/<uuid>` with no `Content-Disposition` and no charset, so a link
+opened a `.txt` inline with broken diacritics and saved everything else under
+its UUID with no extension. Every "Stáhnout" (attachments, comment files, and
+the editor toolbar's button, swapped in by `TaskFormattingToolbar` /
+`EditorFileDownloadButton`) goes through `saveFile` in
+`src/lib/file-download.ts`: fetch the bytes (storage answers CORS for the app's
+origin), save them from a same-origin object URL under the stored name. Image
+previews keep using the storage URL directly.
 
 ### Comments
 
