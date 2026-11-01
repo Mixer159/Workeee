@@ -11,6 +11,7 @@ import {
   type NotificationKind,
 } from "./notificationItems";
 import { listProjectMemberIds } from "./projectMembers";
+import { isTaskHiddenFrom } from "./taskVisibility";
 
 /**
  * Notification batching.
@@ -137,7 +138,8 @@ export async function wantsTaskEmails(
 
 /**
  * A new task on the board: everyone who can open the project sees it in the
- * feed, except the person who just typed it.
+ * feed, except the person who just typed it and anybody it is hidden from
+ * (`pushNotificationItem` skips them).
  *
  * **Feed only — no e-mail.** A task appearing on a board is not yet about
  * anybody in particular; what makes it somebody's business is being assigned
@@ -256,6 +258,11 @@ async function enqueue(
 
   for (const userId of recipients) {
     if (userId === actorId) {
+      continue;
+    }
+    // For a hidden person the task does not exist, so neither does an e-mail
+    // about it. The callers never name one; this is the second lock.
+    if (isTaskHiddenFrom(task, userId)) {
       continue;
     }
     // A bot has no inbox — its `email` is empty on purpose.
@@ -437,6 +444,11 @@ export async function claimDigest(
       // Created and deleted inside the window. Nothing to link to.
       continue;
     }
+    if (isTaskHiddenFrom(task, userId)) {
+      // Hidden from them after the event was queued. Hiding deletes the row
+      // already; this is the last check before something cannot be un-sent.
+      continue;
+    }
 
     if (!actors.has(event.actorId)) {
       const actor = await ctx.db.get(event.actorId);
@@ -532,6 +544,27 @@ export async function commentPreview(
     return null;
   }
   return commentBodyPreview(comment.body);
+}
+
+/**
+ * Drop whatever is still queued about one task for some people — the ones it
+ * was just hidden from. Returns nothing: a hidden person's window simply
+ * flushes empty.
+ */
+export async function deleteTaskNotificationsFor(
+  ctx: MutationCtx,
+  taskId: Id<"tasks">,
+  userIds: ReadonlySet<Id<"users">>,
+): Promise<void> {
+  const events = await ctx.db
+    .query("notificationEvents")
+    .withIndex("by_task", (q) => q.eq("taskId", taskId))
+    .collect();
+  await Promise.all(
+    events
+      .filter((event) => userIds.has(event.userId))
+      .map((event) => ctx.db.delete(event._id)),
+  );
 }
 
 /**

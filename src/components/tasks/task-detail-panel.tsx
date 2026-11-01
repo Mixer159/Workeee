@@ -14,6 +14,7 @@ import { TaskComments } from "@/components/tasks/task-comments";
 import { TaskDescriptionEditor } from "@/components/tasks/task-description-editor";
 import { TaskSaveIndicator } from "@/components/tasks/task-save-indicator";
 import { TaskTitleField } from "@/components/tasks/task-title-field";
+import { TaskVisibilityField } from "@/components/tasks/task-visibility-field";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -36,8 +37,10 @@ import {
 } from "@/components/ui/select";
 import { Separator } from "@/components/ui/separator";
 import { Skeleton } from "@/components/ui/skeleton";
+import { useCurrentUser } from "@/hooks/use-current-user";
 import { formatDate } from "@/lib/format";
 import type { SaveState } from "@/lib/save-state";
+import { membersWhoSee } from "@/lib/task-visibility";
 import { userInitials } from "@/lib/user";
 import { cn } from "@/lib/utils";
 
@@ -78,6 +81,11 @@ export function TaskDetailPanel({
     api.taskContent.get,
     task ? { taskId: task._id } : "skip",
   );
+  const viewer = useCurrentUser();
+  // Řešitel and mention candidates: whoever can open the project, minus who
+  // the task is hidden from. The server refuses the rest anyway; this keeps
+  // the pickers from offering them.
+  const visibleMembers = membersWhoSee(members ?? [], task?.hiddenFrom ?? []);
   const moveTask = useMutation(api.tasks.move);
   const setAssignee = useMutation(api.tasks.setAssignee);
   const removeTask = useMutation(api.tasks.remove);
@@ -268,7 +276,7 @@ export function TaskDetailPanel({
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value={UNASSIGNED}>Nikdo</SelectItem>
-                    {(members ?? []).map((member) => (
+                    {visibleMembers.map((member) => (
                       <SelectItem key={member._id} value={member._id}>
                         <Avatar size="sm">
                           <AvatarImage src={member.image} alt="" />
@@ -282,6 +290,17 @@ export function TaskDetailPanel({
                   </SelectContent>
                 </Select>
               </div>
+
+              <TaskVisibilityField
+                taskId={task._id}
+                hiddenFrom={task.hiddenFrom}
+                canEdit={task.canEditVisibility}
+                authorId={task.createdBy?._id}
+                assigneeId={task.assignee?._id}
+                viewerId={viewer?._id}
+                members={members ?? []}
+                onSaveState={reportSave}
+              />
             </div>
 
             {/* Verbless, the same rule the notification e-mails follow: Czech
@@ -314,7 +333,7 @@ export function TaskDetailPanel({
 
             <Separator />
 
-            <TaskComments taskId={task._id} members={members ?? []} />
+            <TaskComments taskId={task._id} members={visibleMembers} />
             </div>
           )}
         </div>

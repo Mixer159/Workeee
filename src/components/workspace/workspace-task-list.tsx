@@ -1,6 +1,7 @@
 "use client";
 
 import type { FunctionReturnType } from "convex/server";
+import { EyeOffIcon } from "lucide-react";
 import { api } from "@convex/_generated/api";
 import type { Id } from "@convex/_generated/dataModel";
 import { ProjectIcon } from "@/components/projects/project-icon";
@@ -102,6 +103,15 @@ export function WorkspaceTaskList({
                   ) : (
                     <span>Bez stavu</span>
                   )}
+                  {task.restricted ? (
+                    <span
+                      title="Skryto před částí týmu"
+                      aria-label="Skryto před částí týmu"
+                      className="shrink-0"
+                    >
+                      <EyeOffIcon aria-hidden className="size-3.5" />
+                    </span>
+                  ) : null}
                   {task.assignee ? (
                     <span className="ml-auto max-w-28 truncate">
                       {task.assignee.name}

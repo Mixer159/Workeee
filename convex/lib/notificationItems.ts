@@ -1,6 +1,7 @@
 import type { Doc, Id } from "../_generated/dataModel";
 import type { MutationCtx } from "../_generated/server";
 import { isBotUser } from "./bots";
+import { isTaskHiddenFrom } from "./taskVisibility";
 
 /**
  * The in-app notification feed — the second channel next to the e-mail queue in
@@ -60,8 +61,13 @@ export async function pushNotificationItem(
 
   for (const userId of recipients) {
     // A bot has no bell: nothing would ever read the row, so it would grow
-    // forever with nobody to mark it read.
-    if (userId === actorId || (await isBotUser(ctx, userId))) {
+    // forever with nobody to mark it read. And nobody gets a row about a task
+    // hidden from them — for them it does not exist.
+    if (
+      userId === actorId ||
+      isTaskHiddenFrom(task, userId) ||
+      (await isBotUser(ctx, userId))
+    ) {
       continue;
     }
 
@@ -127,6 +133,25 @@ export async function markTaskItemsRead(
       .filter((item) => item.readAt === undefined)
       .map((item) => ctx.db.patch(item._id, { readAt: now })),
   );
+}
+
+/**
+ * The feed rows one person holds about one task — deleted when the task is
+ * hidden from them, so the feed does not keep a pointer to something that,
+ * for them, no longer exists.
+ */
+export async function deleteUserTaskNotificationItems(
+  ctx: MutationCtx,
+  userId: Id<"users">,
+  taskId: Id<"tasks">,
+): Promise<void> {
+  const items = await ctx.db
+    .query("notificationItems")
+    .withIndex("by_user_task", (q) =>
+      q.eq("userId", userId).eq("taskId", taskId),
+    )
+    .collect();
+  await Promise.all(items.map((item) => ctx.db.delete(item._id)));
 }
 
 /**

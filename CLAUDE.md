@@ -143,7 +143,8 @@ convex/
   invites.ts             # create / list / revoke / getByCode (public) / accept
   taskStatuses.ts        # list / create / update / reorder / remove
   tasks.ts               # listByProject / get / create / updateTitle /
-                         # setAssignee / move / remove (cascades to children)
+                         # setAssignee / setHiddenFrom / move / remove
+                         # (cascades to children)
   workspace.ts           # recent tasks + project picker across memberships
   taskContent.ts         # get / save — the BlockNote document of a task
   files.ts               # generateUploadUrl / register / listByTask / remove
@@ -168,6 +169,8 @@ convex/
   passwordResetEmail.test.ts # the link in both bodies, the lifetime, escaping
   notificationItems.test.ts  # feed rows: who, collapsing, reading, the switch
   taskSeen.test.ts       # what counts as unseen, and that it dies with the task
+  taskVisibility.test.ts # hidden tasks: every read, write, count, feed row,
+                         # e-mail and bot tool; who decides, who can be hidden
   presence.test.ts       # the heartbeat, the throttle, what counts as activity
   workspace.test.ts      # cross-org order + limited-member visibility
   bots.test.ts           # tokens, identity sync, bot ∩ owner access, no mail
@@ -202,6 +205,9 @@ convex/
                          # notifications + read state)
   lib/taskSeen.ts        # read state + what counts as unseen
   lib/taskStatuses.ts    # core status seed + ordered read
+  lib/taskVisibility.ts  # hidden tasks: isTaskHiddenFrom, effectiveHiddenIds
+                         # (bots with their owner), isTaskHiddenFromUser, the
+                         # initial hidden list check
   lib/validation.ts      # normalizeName, normalizeTitle
 src/
   app/
@@ -269,7 +275,8 @@ src/
                          # task-save-indicator, task-description-editor,
                          # task-attachments, task-comments, comment-composer,
                          # comment-item, comment-body, comment-reactions,
-                         # mention-textarea,
+                         # mention-textarea, hide-from-menu,
+                         # task-visibility-field,
                          # file-type-icon, image-lightbox,
                          # editor-file-download-button
     workspace/           # shell, provider, rail, command menu, task list, canvas
@@ -282,7 +289,8 @@ src/
                          # current-organization, format, invites, landing, mcp,
                          # og, organization, paintings, presence, project-emojis,
                          # project-icons, repo, save-state, shots,
-                         # task-status-colors, tasks, theme, typography, upload,
+                         # task-status-colors, task-visibility, tasks, theme,
+                         # typography, upload,
                          # user, utils, workspace-rail
   proxy.ts               # `/` answers to the session cookie: app, or the
                          # public page rewritten in — see **Routes**
@@ -436,7 +444,8 @@ invites              organizationId, projectId?, code, createdBy, expiresAt,
 taskStatuses         projectId, organizationId, name, color, order, kind
                      by_project
 tasks                projectId, organizationId, title, statusId, order,
-                     createdBy, assigneeId?, updatedAt
+                     createdBy, assigneeId?, updatedAt, hiddenFrom?
+                     — hiddenFrom absent = everybody in the project sees it
                      by_project · by_project_updated_at · by_status ·
                      by_project_assignee
 taskContent          taskId, projectId, organizationId, content, updatedBy,
@@ -494,8 +503,9 @@ Shared validators live in `convex/schema.ts`: `organizationRoles`,
   and revoke project invites only for projects they can actually open.
 - Audited actions (`activityLogs`): organization created/renamed, invite
   created/accepted/revoked, member role changed/removed, bot added, project
-  created/renamed/archived/restored, task created / status changed / deleted.
-  The `type` union is never taken from client arguments.
+  created/renamed/archived/restored, task created / status changed /
+  visibility changed / deleted. The `type` union is never taken from client
+  arguments.
 
 ### Deleting an organization
 
@@ -745,6 +755,98 @@ project page from interrupting navigation to a newly selected project.
 React regression tests exercise the real switcher with `happy-dom`; backend
 tests retain `edge-runtime`.
 
+## Skryté úkoly (Phase 26)
+
+By default a task is visible to everybody who can open its project.
+`tasks.hiddenFrom` — absent means everybody — names the people it is hidden
+from, and for them **the task does not exist**. The rules live in
+`convex/lib/taskVisibility.ts`, the writes in `createTask` and
+`setTaskHiddenFrom` (`convex/lib/taskActions.ts`).
+
+```ts
+tasks.create        ({ projectId, statusId, title, hiddenFrom? })  // hidden from the first moment
+tasks.setHiddenFrom ({ taskId, userId, hidden })                   // author or project manager
+tasks.get           → { …, hiddenFrom: Id<"users">[], canEditVisibility }
+```
+
+Who decides, and who can be hidden:
+
+- **The author and project managers** — the people who may delete the task,
+  because hiding it from somebody deletes it for them. Everybody else who sees
+  the task sees the list read-only, which is what keeps them from mentioning
+  it to those people.
+- **Never the caller, the author or the řešitel.** A bot counts with its
+  owner: hiding a person hides every bot they own (`effectiveHiddenIds`), so
+  hiding the owner of the řešitel bot or of the author bot is refused as well.
+  Only people who can open the project can be added, at most
+  `MAX_HIDDEN_PER_TASK` (100). Anybody else may be hidden, owners and admins
+  included; a hidden manager loses the task like anyone.
+- **One person per call**, never a whole list: two managers editing at once
+  would otherwise have the later write un-hide whoever the earlier one just
+  hid. Idempotent, audited as `task_visibility_changed` with `{ userId, hidden }`.
+- **Ids outlive the membership.** A person who leaves the project stays on the
+  list, so the task is still hidden from them if they come back.
+
+Three layers, and each would be enough alone:
+
+1. **Reads.** `getTaskAccess` / `requireTaskAccess` return `null` / throw
+   "Tento úkol už neexistuje." — the sentence a deleted task gets, so probing
+   ids cannot tell hidden from deleted. Every index read of tasks filters
+   through `isTaskHiddenFrom`: the board, `listProjectUnread` (both badge
+   queries — a count is a read too), the feed and the bell,
+   `workspace.listTasks`, `taskStatuses.remove`'s `movedTasks` and the MCP
+   tools. The workspace skips hidden tasks **while** streaming the index
+   (`for await`, at most 500 skipped per project), so they cannot push visible
+   work off the page. A bot checks itself **and** its owner
+   (`isTaskHiddenFromActor`): nobody reads through their bot what is hidden
+   from them. Three quieter signals are closed too: the board payload carries
+   no `order` (positions are computed with hidden tasks among them, so their
+   gaps would count the hidden cards), a move whose neighbour is hidden from
+   the actor treats that neighbour as not sent, and a mutation reached through
+   a comment or file id answers with that row's own "už neexistuje" — what a
+   deleted task's comments and files answer (`requireTaskAccess`'s `missing`).
+2. **Audiences.** A hidden person cannot be made řešitel
+   (`isTaskHiddenFromUser`) or `@`-mentioned (`validateCommentBody` checks
+   against the project members minus `effectiveHiddenIds`), and both
+   notification writers skip a hidden recipient. A task created with
+   `hiddenFrom` gives its `task_created` feed row to everybody else only.
+   Hiding somebody deletes, in the same transaction, their queued
+   `notificationEvents`, their `notificationItems` and their `taskSeen` row
+   for the task; shown again, it reads as new to them.
+3. **Send time.** `claimDigest` re-reads the task and drops it when the
+   recipient is hidden. An e-mail is the one thing that cannot be taken back.
+
+Editing a comment keeps the mentions it already had unchecked
+(`keepMentions`): a typo fix must not fail because somebody it named was
+hidden since, and an edit notifies nobody.
+
+The client mirrors the rule in `src/lib/task-visibility.ts`: `membersWhoSee`
+filters the řešitel select and the mention picker, `hideOptions` locks
+`vy · autor · řešitel · s vlastníkem`. `HideFromMenu` is the one "Skrýt před"
+menu. `TaskVisibilityField` ("Viditelnost", beside Stav and Řešitel) writes
+each toggle at once; the board quick-add (the eye button, kept for every task
+typed until the line closes) and the work-mode creator **stage** the list and
+pass it to `tasks.create`, because hiding a moment after creating would already
+have put the title on those people's boards. Cards and work-mode rows show an
+eye-off, "Skryto před částí týmu" — a flag (`restricted`), never the names.
+`projects.assignableMembers` carries `ownerId` for bots so the menu can show a
+bot hidden with its owner.
+
+Known limits, said plainly:
+
+- **Hiding is not un-seeing.** What a person loaded before they were hidden
+  stays on their screen until it re-renders, and a file URL they copied keeps
+  working: storage URLs are capabilities and are not revoked. When the title
+  itself is the secret, hide while creating.
+- Deleting a custom status moves hidden tasks with their column — they are
+  never orphaned — even when the person deleting it cannot see them.
+- `activityLogs` carry task titles in `meta`. Nothing reads them today; an
+  audit-log surface must filter hidden tasks the same way.
+- A member may hide their own task from every manager, owners included. If
+  that author later leaves, nobody left can change its visibility or delete
+  it; whoever still sees it can keep working on it. The product owner chose
+  this on 2026-11-01 over an owner exception: anyone can be hidden from.
+
 ## The task detail (Phase 4, reshaped in Phases 6 and 17)
 
 The same `TaskDetailPanel` opens in two places. Clicking a board card uses the
@@ -812,7 +914,8 @@ Enter, Backspace and Escape operate the whole flow from the keyboard. Below
 `lg` the rail is the existing left sheet and the task panel takes the viewport.
 
 Order inside the panel: header (project name · save indicator · delete · close)
-→ title → status + assignee selects → meta line → **description editor** →
+→ title → status + assignee selects + **Viditelnost** → meta line →
+**description editor** →
 **Přílohy** → **Komentáře**. Each section owns its heading exactly once; the
 editor has no heading at all, because the body *is* the panel — and it is the
 one section with no `Separator` above it, for the same reason.
@@ -831,6 +934,7 @@ There is no save button anywhere in the panel, and no dialog to confirm an edit:
 |---|---|
 | Title | debounced 700 ms while typing, flushed on blur, Enter and unmount |
 | Stav · Řešitel | on change |
+| Viditelnost | on every toggle, one person per write |
 | Description | debounced 1 s, flushed on unmount |
 | **Komentáře** | **never automatically** — a message is *sent*, on Enter or the button |
 
@@ -1014,7 +1118,9 @@ commentReactions.toggle ({ commentId, emoji }) → { active }              // pr
 ```
 
 Server-side rules: every mentioned id must be in `listProjectMemberIds` (the same
-set `projects.assignableMembers` renders); every attachment must be a `files` row
+set `projects.assignableMembers` renders) and must not be somebody the task is
+hidden from — except, on `update`, ids the comment already named (see **Skryté
+úkoly**); every attachment must be a `files` row
 on this task, uploaded by the author, `context: "comment"`, and not already
 claimed. All three mutations bump `tasks.updatedAt`. A mention is **what pulls
 somebody into a thread**: `comments.create` queues a notification for everyone
@@ -1111,6 +1217,9 @@ caused them — the fourth is shown in the app and never mailed:
 | `task_created` | everyone who can open the project — **the feed only, no e-mail** |
 | `comment_mention` | everyone the comment `@`-names |
 | `comment_added` | the task's řešitel |
+
+Nobody a task is hidden from hears about it on any channel — see **Skryté
+úkoly**.
 
 Every one of them also lands in **the in-app feed** (Phase 15) — same audience,
 same collapsing, no switch — which since Phase 23 makes the feed the **wider**
@@ -1385,7 +1494,9 @@ checks the **owner's** access to the project and runs the shared action
 the UI mutations call) **with the bot's id**, so the bot's own membership goes
 through `convex/lib/access.ts` too. A bot without a membership sees nothing
 even when its owner sees everything, and a bot whose owner loses access loses
-it in the same moment. Nothing is ever wider than what the owner may do.
+it in the same moment. Nothing is ever wider than what the owner may do — a
+task hidden from the owner is hidden from every bot they own
+(`isTaskHiddenFromActor`).
 
 A bot is never a session user: its `authId` is a synthetic `bot:<uuid>`, its
 `email` is empty, and `getAuthUser` refuses `kind: "bot"`. It is never
@@ -1417,7 +1528,10 @@ id is a readable sentence rather than a validator error. Every tool rethrows
 its Czech message as a `ConvexError` — a plain `Error` crossing `runMutation`
 would reach the bot as "Akce se nepovedla.". `add_comment` is plain text:
 `@Jméno` stays text and notifies nobody. `search` matches titles over the 500
-most recently updated tasks per project (`by_project_updated_at`).
+most recently updated tasks per project (`by_project_updated_at`). `get_task`
+returns `hiddenFrom` (who the task is hidden from) and `list_tasks` marks
+`hidden: true`; no tool changes visibility, and `create_task` cannot create a
+hidden task.
 
 ## Routes
 
@@ -1780,7 +1894,8 @@ Day-one decisions:
 5. **Locale:** Czech UI, English code.
 6. **Audited actions**: organization created/renamed, invite
    created/accepted/revoked, member role changed/removed, bot added, project
-   created/renamed/archived/restored, task created / status changed / deleted.
+   created/renamed/archived/restored, task created / status changed /
+   visibility changed / deleted.
 
 ## Phase roadmap
 
@@ -1956,10 +2071,26 @@ Day-one decisions:
   logo band confirmed with the owner, copyable deploy commands, and a footer
   with the copyright, the design credit and the painting credit. See **The
   public page**.
+- **Phase 26 (done).** Hidden tasks. A task stays visible to everybody in its
+  project unless its author or a project manager hides it from chosen people,
+  from the detail's "Viditelnost" or already while creating it. For them the
+  task does not exist: no board, count, feed row, e-mail or bot tool names it,
+  every write answers like a deleted task, and they cannot be assigned or
+  mentioned. See **Skryté úkoly**.
 - **Later.** List view, due dates, filters in the URL, activity timeline,
-  audit log surface.
+  audit log surface (it has to filter hidden tasks).
 
 ## Continual learning
+
+- **Hiding a row means hiding its side channels.** Filtering every list of
+  tasks is not enough to hide one. The unread badges, the bell, the
+  `movedTasks` a status deletion returns and the fractional `order` of the
+  visible cards (whose gaps count the hidden ones) would each have announced
+  it; a move placed "after" a remembered hidden id would have said which
+  column it is in; and a comment id answered "task gone" where a deleted
+  task's comment answers "comment gone". A number, a position and an error
+  message are reads. When access narrows, check every value that leaves a
+  function and every id a caller can hand back in, not only the lists.
 
 - **A contributed page goes into the app, not beside it.** The public page
   first arrived as a complete second Next.js project in `web/`, with its own

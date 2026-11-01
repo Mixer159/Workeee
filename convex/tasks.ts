@@ -16,13 +16,20 @@ import {
   createTask,
   moveTask,
   renameTask,
+  setTaskHiddenFrom,
 } from "./lib/taskActions";
-import { deleteTaskChildren, requireTaskAccess } from "./lib/tasks";
+import {
+  deleteTaskChildren,
+  getTaskAccess,
+  requireTaskAccess,
+} from "./lib/tasks";
 import { listProjectStatuses } from "./lib/taskStatuses";
+import { isTaskHiddenFrom } from "./lib/taskVisibility";
 
 /**
- * The whole board in one query: every task of the project with the display
- * fields a card needs, ordered by column and then by position inside it.
+ * The whole board in one query: every task of the project the caller may see
+ * with the display fields a card needs, ordered by column and then by position
+ * inside it. Tasks hidden from the caller are not in the answer at all.
  *
  * Assignees are resolved here, once per distinct person — a card must never
  * open its own query for the avatar next to the title.
@@ -39,13 +46,14 @@ export const listByProject = query({
       return [];
     }
 
-    const [statuses, tasks] = await Promise.all([
+    const [statuses, allTasks] = await Promise.all([
       listProjectStatuses(ctx, args.projectId),
       ctx.db
         .query("tasks")
         .withIndex("by_project", (q) => q.eq("projectId", args.projectId))
         .collect(),
     ]);
+    const tasks = allTasks.filter((task) => !isTaskHiddenFrom(task, userId));
 
     const statusOrder = new Map(
       statuses.map((status, index) => [status._id, index]),
@@ -66,8 +74,12 @@ export const listByProject = query({
         _id: task._id,
         title: task.title,
         statusId: task.statusId,
-        order: task.order,
+        // No `order`: the list is already sorted, and the numbers are
+        // computed with hidden tasks among them, so their gaps would count
+        // the cards the caller cannot see.
         assignee: task.assigneeId ? (people.get(task.assigneeId) ?? null) : null,
+        // Only a flag: who it is hidden from is the detail's business.
+        restricted: (task.hiddenFrom?.length ?? 0) > 0,
       }));
   },
 });
@@ -88,14 +100,13 @@ export const get = query({
     if (!taskId) {
       return null;
     }
-    const task = await ctx.db.get(taskId);
-    if (!task) {
+    // Missing, hidden from the caller, or in a project they cannot open: the
+    // same `null`, so the panel says the same thing for all three.
+    const taskAccess = await getTaskAccess(ctx, userId, taskId);
+    if (!taskAccess) {
       return null;
     }
-    const access = await getProjectAccess(ctx, userId, task.projectId);
-    if (!access) {
-      return null;
-    }
+    const { task, access } = taskAccess;
 
     const [status, creator, assignee] = await Promise.all([
       ctx.db.get(task.statusId),
@@ -117,6 +128,14 @@ export const get = query({
       createdAt: task._creationTime,
       updatedAt: task.updatedAt,
       canRemove: task.createdBy === userId || canManageProject(access),
+      /**
+       * Who the task is hidden from. Everybody who can see the task may see
+       * this list — it is what stops them mentioning it to those people. It
+       * may hold people who have left the project since; the client shows
+       * only the ones it can match to a member.
+       */
+      hiddenFrom: task.hiddenFrom ?? [],
+      canEditVisibility: task.createdBy === userId || canManageProject(access),
     };
   },
 });
@@ -129,6 +148,8 @@ export const create = mutation({
     projectId: v.id("projects"),
     statusId: v.id("taskStatuses"),
     title: v.string(),
+    // Hidden from these people from the first moment. See `createTask`.
+    hiddenFrom: v.optional(v.array(v.id("users"))),
   },
   handler: async (ctx, args) => {
     const userId = await getAuthUserId(ctx);
@@ -163,6 +184,25 @@ export const setAssignee = mutation({
       throw new Error("Nejste přihlášeni.");
     }
     await assignTask(ctx, userId, args);
+  },
+});
+
+/**
+ * Hide the task from one person, or show it to them again. Author or project
+ * manager; see `setTaskHiddenFrom` for who can never be hidden.
+ */
+export const setHiddenFrom = mutation({
+  args: {
+    taskId: v.id("tasks"),
+    userId: v.id("users"),
+    hidden: v.boolean(),
+  },
+  handler: async (ctx, args) => {
+    const userId = await getAuthUserId(ctx);
+    if (!userId) {
+      throw new Error("Nejste přihlášeni.");
+    }
+    await setTaskHiddenFrom(ctx, userId, args);
   },
 });
 

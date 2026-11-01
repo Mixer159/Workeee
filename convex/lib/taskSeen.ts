@@ -1,5 +1,6 @@
 import type { Doc, Id } from "../_generated/dataModel";
 import type { MutationCtx, QueryCtx } from "../_generated/server";
+import { isTaskHiddenFrom } from "./taskVisibility";
 
 /**
  * Read state, and the unread badges computed from it.
@@ -73,8 +74,11 @@ export async function listProjectUnread(
   ]);
   const seenAt = new Map(seenRows.map((row) => [row.taskId, row.lastSeenAt]));
 
+  // A hidden task must not even be counted: "2 úkoly k přečtení" over a
+  // board that shows one is the task announcing itself.
+  const visible = tasks.filter((task) => !isTaskHiddenFrom(task, userId));
   const entries = await Promise.all(
-    tasks.map(async (task): Promise<TaskUnread> => {
+    visible.map(async (task): Promise<TaskUnread> => {
       const lastSeenAt = seenAt.get(task._id);
       const newer = await ctx.db
         .query("comments")
@@ -94,6 +98,26 @@ export async function listProjectUnread(
   );
 
   return entries.filter((entry) => entry.isNew || entry.unreadComments > 0);
+}
+
+/**
+ * One person's read state of one task, dropped when the task is hidden from
+ * them. Shown again later, it then reads as new to them, which it is.
+ */
+export async function deleteUserTaskSeen(
+  ctx: MutationCtx,
+  userId: Id<"users">,
+  taskId: Id<"tasks">,
+): Promise<void> {
+  const row = await ctx.db
+    .query("taskSeen")
+    .withIndex("by_user_task", (q) =>
+      q.eq("userId", userId).eq("taskId", taskId),
+    )
+    .unique();
+  if (row) {
+    await ctx.db.delete(row._id);
+  }
 }
 
 /**

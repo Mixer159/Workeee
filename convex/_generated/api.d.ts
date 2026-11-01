@@ -46,6 +46,7 @@ import type * as lib_taskActions from "../lib/taskActions.js";
 import type * as lib_taskContent from "../lib/taskContent.js";
 import type * as lib_taskSeen from "../lib/taskSeen.js";
 import type * as lib_taskStatuses from "../lib/taskStatuses.js";
+import type * as lib_taskVisibility from "../lib/taskVisibility.js";
 import type * as lib_tasks from "../lib/tasks.js";
 import type * as lib_validation from "../lib/validation.js";
 import type * as mcp from "../mcp.js";
@@ -109,6 +110,7 @@ declare const fullApi: ApiFromModules<{
   "lib/taskContent": typeof lib_taskContent;
   "lib/taskSeen": typeof lib_taskSeen;
   "lib/taskStatuses": typeof lib_taskStatuses;
+  "lib/taskVisibility": typeof lib_taskVisibility;
   "lib/tasks": typeof lib_tasks;
   "lib/validation": typeof lib_validation;
   mcp: typeof mcp;

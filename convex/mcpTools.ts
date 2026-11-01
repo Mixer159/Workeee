@@ -10,6 +10,7 @@ import { getActiveApiToken, LAST_USED_GAP_MS } from "./lib/apiTokens";
 import {
   getActorOrgAccess,
   isBot,
+  isTaskHiddenFromActor,
   listActorProjects,
   requireActorProjectAccess,
   requireActorTaskAccess,
@@ -135,13 +136,14 @@ export const listTasks = internalQuery({
       const projectId = requireId(ctx, "projects", args.projectId);
       const { project } = await requireActorProjectAccess(ctx, actor, projectId);
 
-      const [statuses, tasks] = await Promise.all([
+      const [statuses, allTasks] = await Promise.all([
         listProjectStatuses(ctx, projectId),
         ctx.db
           .query("tasks")
           .withIndex("by_project", (q) => q.eq("projectId", projectId))
           .collect(),
       ]);
+      const tasks = allTasks.filter((task) => !isTaskHiddenFromActor(task, actor));
       const statusIndex = new Map(statuses.map((status, index) => [status._id, index]));
       const people = await loadPeople(ctx, tasks.map((task) => task.assigneeId));
 
@@ -165,6 +167,7 @@ export const listTasks = internalQuery({
           statusId: task.statusId,
           status: statusName.get(task.statusId) ?? null,
           assignee: task.assigneeId ? (people.get(task.assigneeId) ?? null) : null,
+          hidden: (task.hiddenFrom?.length ?? 0) > 0,
           updatedAt: task.updatedAt,
         })),
       };
@@ -189,7 +192,7 @@ export const getTask = internalQuery({
           .query("taskContent")
           .withIndex("by_task", (q) => q.eq("taskId", task._id))
           .unique(),
-        loadPeople(ctx, [task.assigneeId, task.createdBy]),
+        loadPeople(ctx, [task.assigneeId, task.createdBy, ...(task.hiddenFrom ?? [])]),
       ]);
       const blocks = content ? parseTaskContent(content.content) : null;
 
@@ -206,6 +209,9 @@ export const getTask = internalQuery({
         createdAt: task._creationTime,
         updatedAt: task.updatedAt,
         description: blocks ? taskContentText(blocks) : "",
+        hiddenFrom: (task.hiddenFrom ?? [])
+          .map((userId) => people.get(userId))
+          .filter((person): person is Person => person !== undefined),
         comments: args.includeComments ? await commentRows(ctx, task._id) : undefined,
       };
     }),
@@ -299,6 +305,7 @@ export const search = internalQuery({
       const projectName = new Map(projects.map((project) => [project._id, project.name]));
       const matches = pages
         .flat()
+        .filter((task) => !isTaskHiddenFromActor(task, actor))
         .filter((task) => task.title.toLocaleLowerCase("cs").includes(needle))
         .sort((a, b) => b.updatedAt - a.updatedAt)
         .slice(0, limit);

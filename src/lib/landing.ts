@@ -75,7 +75,7 @@ export const FEATURES: Feature[] = [
   {
     id: "role",
     title: "Role a viditelnost",
-    body: "Vlastník, správce a člen. Člen vidí celou organizaci, nebo jen projekty, do kterých ho někdo pozval.",
+    body: "Vlastník, správce a člen. Člen vidí celou organizaci, nebo jen projekty, do kterých ho někdo pozval. Jednotlivý úkol jde skrýt před vybranými lidmi.",
     shot: SHOTS.featureRole,
   },
   {

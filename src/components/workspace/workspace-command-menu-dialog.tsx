@@ -8,17 +8,32 @@ import type { FunctionReturnType } from "convex/server";
 import {
   ArrowLeftIcon,
   ChevronRightIcon,
+  EyeIcon,
+  EyeOffIcon,
   SearchIcon,
   SquarePenIcon,
 } from "lucide-react";
 import { api } from "@convex/_generated/api";
+import type { Id } from "@convex/_generated/dataModel";
 import { ProjectIcon } from "@/components/projects/project-icon";
+import { HideFromMenu } from "@/components/tasks/hide-from-menu";
 import {
   Dialog,
   DialogContent,
   DialogTitle,
 } from "@/components/ui/dialog";
+import {
+  hiddenSummary,
+  type HideOption,
+  type VisibilityMember,
+} from "@/lib/task-visibility";
 import { cn } from "@/lib/utils";
+
+/** Who the new task is hidden from, staged until it is created. */
+export type WorkspaceTaskVisibility = {
+  options: HideOption<VisibilityMember>[];
+  onToggle: (userId: Id<"users">, hidden: boolean) => void;
+};
 
 export type WorkspaceTask = FunctionReturnType<
   typeof api.workspace.listTasks
@@ -41,6 +56,7 @@ export function WorkspaceCommandMenuDialog({
   projects,
   selectedProject,
   statusesLoading,
+  visibility,
   showCreateAction,
   activeIndex,
   onOpenChange,
@@ -63,6 +79,7 @@ export function WorkspaceCommandMenuDialog({
   projects: WorkspaceProject[];
   selectedProject: WorkspaceProject | null;
   statusesLoading: boolean;
+  visibility: WorkspaceTaskVisibility;
   showCreateAction: boolean;
   activeIndex: number;
   onOpenChange: (open: boolean) => void;
@@ -137,6 +154,7 @@ export function WorkspaceCommandMenuDialog({
               title={inputValue}
               statusesLoading={statusesLoading}
               pending={pending}
+              visibility={visibility}
               onSubmit={onSubmit}
             />
           )}
@@ -271,18 +289,22 @@ function TaskTitleStep({
   title,
   statusesLoading,
   pending,
+  visibility,
   onSubmit,
 }: {
   project: WorkspaceProject | null;
   title: string;
   statusesLoading: boolean;
   pending: boolean;
+  visibility: WorkspaceTaskVisibility;
   onSubmit: () => void;
 }) {
   if (!project) {
     return null;
   }
   const disabled = title.trim().length === 0 || statusesLoading || pending;
+  const hiddenCount = visibility.options.filter((option) => option.hidden)
+    .length;
 
   return (
     <div>
@@ -302,6 +324,33 @@ function TaskTitleStep({
             {project.organizationName}
           </p>
         </div>
+      </div>
+
+      {/* Chosen before the task exists, so it is created hidden rather than
+          hidden a moment after everybody's board has shown its title. */}
+      <div className="flex items-center justify-between gap-3 px-3 py-1">
+        <span className="text-sm text-muted-foreground">Viditelnost</span>
+        <HideFromMenu
+          options={visibility.options}
+          onToggle={visibility.onToggle}
+          align="end"
+        >
+          <button
+            type="button"
+            disabled={pending}
+            className="flex h-8 min-w-0 items-center gap-1.5 rounded-md px-2.5 text-sm text-foreground outline-none transition-colors hover:bg-accent focus-visible:ring-3 focus-visible:ring-ring/40 disabled:opacity-45"
+          >
+            {hiddenCount > 0 ? (
+              <EyeOffIcon aria-hidden className="size-4 shrink-0 text-primary" />
+            ) : (
+              <EyeIcon
+                aria-hidden
+                className="size-4 shrink-0 text-muted-foreground"
+              />
+            )}
+            <span className="truncate">{hiddenSummary(hiddenCount)}</span>
+          </button>
+        </HideFromMenu>
       </div>
 
       <div className="mt-4 border-t border-border pt-3">
