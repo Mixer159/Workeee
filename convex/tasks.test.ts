@@ -62,6 +62,16 @@ async function addMember(
   return user;
 }
 
+/**
+ * Stored positions, in board order. The board query does not return `order`
+ * (its gaps would count tasks hidden from the caller), so read the table.
+ */
+async function ordersOf(t: Harness, ids: Id<"tasks">[]) {
+  return await t.run(async (ctx) =>
+    Promise.all(ids.map(async (id) => (await ctx.db.get(id))!.order)),
+  );
+}
+
 async function statusesOf(
   user: { as: Identity },
   projectId: Id<"projects">,
@@ -310,8 +320,9 @@ describe("tasks", () => {
 
     const tasks = await owner.as.query(api.tasks.listByProject, { projectId });
     expect(tasks.map((task) => task.title)).toEqual(["První", "Druhý", "Třetí"]);
-    expect(tasks[0].order).toBeLessThan(tasks[1].order);
-    expect(tasks[1].order).toBeLessThan(tasks[2].order);
+    const orders = await ordersOf(t, tasks.map((task) => task._id));
+    expect(orders[0]).toBeLessThan(orders[1]);
+    expect(orders[1]).toBeLessThan(orders[2]);
   });
 
   test("moving between two cards takes the midpoint of their orders", async () => {
@@ -337,8 +348,9 @@ describe("tasks", () => {
 
     const tasks = await owner.as.query(api.tasks.listByProject, { projectId });
     expect(tasks.map((task) => task.title)).toEqual(["A", "C", "B"]);
-    expect(tasks[1].order).toBeGreaterThan(tasks[0].order);
-    expect(tasks[1].order).toBeLessThan(tasks[2].order);
+    const orders = await ordersOf(t, tasks.map((task) => task._id));
+    expect(orders[1]).toBeGreaterThan(orders[0]);
+    expect(orders[1]).toBeLessThan(orders[2]);
   });
 
   test("a column with no room left is renumbered instead of colliding", async () => {
@@ -369,7 +381,9 @@ describe("tasks", () => {
 
     const tasks = await owner.as.query(api.tasks.listByProject, { projectId });
     expect(tasks.map((task) => task.title)).toEqual(["A", "C", "B"]);
-    expect(tasks.map((task) => task.order)).toEqual([1024, 2048, 3072]);
+    expect(await ordersOf(t, tasks.map((task) => task._id))).toEqual([
+      1024, 2048, 3072,
+    ]);
   });
 
   test("moving to another column appends there and is audited", async () => {
@@ -488,6 +502,7 @@ describe("tasks", () => {
         name: "Jana Nováková",
         email: "jana@example.com",
         image: undefined,
+        ownerId: null,
       },
     ]);
 

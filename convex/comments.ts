@@ -13,7 +13,11 @@ import {
   MAX_COMMENTS,
   validateCommentBody,
 } from "./lib/commentActions";
-import { parseCommentBody, serializeCommentBody } from "./lib/commentBody";
+import {
+  mentionedUserIds,
+  parseCommentBody,
+  serializeCommentBody,
+} from "./lib/commentBody";
 import {
   deleteCommentReactions,
   listTaskReactions,
@@ -27,8 +31,9 @@ import { getTaskAccess, requireTaskAccess, touchTask } from "./lib/tasks";
  *
  * `body` is a serialized segment array (`convex/lib/commentBody.ts`). The client
  * builds it, the server re-parses it and re-checks every mention against the
- * people who can actually open the project — a mention is a reference to a user
- * id, so it must never name somebody who is not there.
+ * people who can actually see the task — a mention is a reference to a user
+ * id, so it must never name somebody who is not there, or somebody the task
+ * is hidden from.
  */
 
 export const listByTask = query({
@@ -118,14 +123,22 @@ export const update = mutation({
     if (!comment) {
       throw new Error("Tento komentář už neexistuje.");
     }
-    const { task, access } = await requireTaskAccess(ctx, userId, comment.taskId);
+    const { task } = await requireTaskAccess(
+      ctx,
+      userId,
+      comment.taskId,
+      "Tento komentář už neexistuje.",
+    );
     if (comment.authorId !== userId) {
       throw new Error("Komentář může upravit jen jeho autor.");
     }
     await touchActive(ctx, userId);
 
-    const segments = await validateCommentBody(ctx, access, args.body, {
+    const segments = await validateCommentBody(ctx, task, args.body, {
       allowEmpty: (comment.attachmentIds ?? []).length > 0,
+      keepMentions: new Set(
+        mentionedUserIds(parseCommentBody(comment.body) ?? []),
+      ),
     });
     await ctx.db.patch(comment._id, {
       body: serializeCommentBody(segments),
@@ -147,7 +160,12 @@ export const remove = mutation({
     if (!comment) {
       throw new Error("Tento komentář už neexistuje.");
     }
-    const { task, access } = await requireTaskAccess(ctx, userId, comment.taskId);
+    const { task, access } = await requireTaskAccess(
+      ctx,
+      userId,
+      comment.taskId,
+      "Tento komentář už neexistuje.",
+    );
     if (comment.authorId !== userId && !canManageProject(access)) {
       throw new Error("Komentář může smazat jen jeho autor nebo správce projektu.");
     }

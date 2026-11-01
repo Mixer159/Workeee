@@ -4,6 +4,7 @@ import { mutation, query } from "./_generated/server";
 import { getOrgAccess, getProjectAccess, requireOrgAccess } from "./lib/access";
 import { getAuthUserId } from "./lib/auth";
 import { commentPreview } from "./lib/notifications";
+import { isTaskHiddenFrom } from "./lib/taskVisibility";
 
 /**
  * The in-app notification feed — what `/upozorneni` renders and what the badge
@@ -55,7 +56,9 @@ export const list = query({
       }
 
       const task = await ctx.db.get(row.taskId);
-      if (!task) {
+      // Hiding deletes the hidden person's rows; this keeps a row that
+      // somehow survived from naming the task anyway.
+      if (!task || isTaskHiddenFrom(task, userId)) {
         continue;
       }
 
@@ -86,8 +89,8 @@ export const list = query({
 
 /**
  * The number on the bell. Counts the same rows `list` would show as unread —
- * including the per-project access re-check, so the badge can never say "3"
- * over a feed that shows nothing.
+ * including the per-project access re-check and the hidden-task check, so the
+ * badge can never say "3" over a feed that shows nothing.
  */
 export const unreadCount = query({
   args: { organizationId: v.id("organizations") },
@@ -119,7 +122,11 @@ export const unreadCount = query({
           (await getProjectAccess(ctx, userId, row.projectId)) !== null,
         );
       }
-      if (allowed.get(row.projectId)) {
+      if (!allowed.get(row.projectId)) {
+        continue;
+      }
+      const task = await ctx.db.get(row.taskId);
+      if (task && !isTaskHiddenFrom(task, userId)) {
         count += 1;
       }
     }

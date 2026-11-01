@@ -25,7 +25,12 @@ export const toggle = mutation({
     if (!comment) {
       throw new Error("Tento komentář už neexistuje.");
     }
-    const { task } = await requireTaskAccess(ctx, userId, comment.taskId);
+    const { task } = await requireTaskAccess(
+      ctx,
+      userId,
+      comment.taskId,
+      "Tento komentář už neexistuje.",
+    );
     await touchActive(ctx, userId);
     const emoji = normalizeReactionEmoji(args.emoji);
     const existing = await ctx.db

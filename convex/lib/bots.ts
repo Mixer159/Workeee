@@ -9,6 +9,7 @@ import {
 } from "./access";
 import { getActiveApiToken } from "./apiTokens";
 import type { TaskAccess } from "./tasks";
+import { isTaskHiddenFrom } from "./taskVisibility";
 import { normalizeUserName } from "./validation";
 
 type Ctx = QueryCtx | MutationCtx;
@@ -182,14 +183,31 @@ export async function requireActorProjectAccess(
   return access;
 }
 
-/** A task plus the bot's (intersected) access to its project. */
+/**
+ * Is the task hidden from this bot — from the bot itself, or from its owner?
+ * Bot ∩ owner holds for hidden tasks too: a person must not read through
+ * their bot what is hidden from them.
+ */
+export function isTaskHiddenFromActor(
+  task: Pick<Doc<"tasks">, "hiddenFrom">,
+  actor: BotActor,
+): boolean {
+  return (
+    isTaskHiddenFrom(task, actor.botId) || isTaskHiddenFrom(task, actor.ownerId)
+  );
+}
+
+/**
+ * A task plus the bot's (intersected) access to its project. Hidden from the
+ * bot or its owner reads exactly like deleted.
+ */
 export async function requireActorTaskAccess(
   ctx: Ctx,
   actor: BotActor,
   taskId: Id<"tasks">,
 ): Promise<TaskAccess> {
   const task = await ctx.db.get(taskId);
-  if (!task) {
+  if (!task || isTaskHiddenFromActor(task, actor)) {
     throw new Error("Tento úkol už neexistuje.");
   }
   const access = await requireActorProjectAccess(ctx, actor, task.projectId);

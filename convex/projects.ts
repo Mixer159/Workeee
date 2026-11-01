@@ -166,6 +166,9 @@ export const assignableMembers = query({
               name: user.name,
               email: user.email,
               image: user.image,
+              // Bots only. A task hidden from a person is hidden from their
+              // bots too, and the visibility picker has to show that.
+              ownerId: user.ownerId ?? null,
             }
           : null;
       }),

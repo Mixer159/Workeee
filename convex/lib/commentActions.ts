@@ -1,6 +1,5 @@
 import type { Doc, Id } from "../_generated/dataModel";
 import type { MutationCtx } from "../_generated/server";
-import type { ProjectAccess } from "./access";
 import {
   commentBodyText,
   compactCommentBody,
@@ -14,6 +13,7 @@ import { notifyComment } from "./notifications";
 import { touchActive } from "./presence";
 import { listProjectMemberIds } from "./projectMembers";
 import { requireTaskAccess, touchTask } from "./tasks";
+import { effectiveHiddenIds } from "./taskVisibility";
 
 /**
  * Writing a comment on behalf of `actorId` — the signed-in person from
@@ -37,7 +37,7 @@ export async function createComment(
     attachmentIds?: Id<"files">[];
   },
 ): Promise<Id<"comments">> {
-  const { task, access } = await requireTaskAccess(ctx, actorId, args.taskId);
+  const { task } = await requireTaskAccess(ctx, actorId, args.taskId);
   await touchActive(ctx, actorId);
 
   const existingComments = await ctx.db
@@ -54,7 +54,7 @@ export async function createComment(
     actorId,
     args.attachmentIds ?? [],
   );
-  const segments = await validateCommentBody(ctx, access, args.body, {
+  const segments = await validateCommentBody(ctx, task, args.body, {
     allowEmpty: attachments.length > 0,
   });
 
@@ -88,15 +88,21 @@ export async function createComment(
 
 /**
  * Re-parse the caller's body and check every mention against the people who can
- * open this project. An unknown or non-member id is a rejection, not a silent
- * downgrade to plain text — the client picked it from `assignableMembers`, so
- * anything else arrived by hand.
+ * see this task — who can open the project, minus who it is hidden from. An
+ * unknown, non-member or hidden id is a rejection, not a silent downgrade to
+ * plain text: the client picked it from a list that already left those people
+ * out, so anything else arrived by hand. And a mention is the one thing that
+ * would put the task in a hidden person's inbox.
+ *
+ * `keepMentions` are the ids the comment already named before an edit. They
+ * pass unchecked: fixing a typo must not fail because somebody named in the
+ * original has left the project since — editing notifies nobody.
  */
 export async function validateCommentBody(
   ctx: MutationCtx,
-  access: ProjectAccess,
+  task: Doc<"tasks">,
   raw: string,
-  options: { allowEmpty: boolean },
+  options: { allowEmpty: boolean; keepMentions?: ReadonlySet<Id<"users">> },
 ): Promise<CommentSegment[]> {
   const parsed = parseCommentBody(raw);
   if (!parsed) {
@@ -112,16 +118,20 @@ export async function validateCommentBody(
     throw new Error(`Komentář může mít nejvýš ${MAX_COMMENT_LENGTH} znaků.`);
   }
 
-  const mentioned = mentionedUserIds(segments);
+  const mentioned = mentionedUserIds(segments).filter(
+    (mentionId) => !options.keepMentions?.has(mentionId),
+  );
   if (mentioned.length > 0) {
-    const memberIds = await listProjectMemberIds(
-      ctx,
-      access.project._id,
-      access.project.organizationId,
-    );
+    const [memberIds, hiddenIds] = await Promise.all([
+      listProjectMemberIds(ctx, task.projectId, task.organizationId),
+      effectiveHiddenIds(ctx, task.hiddenFrom),
+    ]);
     for (const mentionId of mentioned) {
       if (!memberIds.has(mentionId)) {
         throw new Error("Zmíněný člověk nemá přístup k tomuto projektu.");
+      }
+      if (hiddenIds.has(mentionId)) {
+        throw new Error("Před zmíněným člověkem je úkol skrytý.");
       }
     }
   }

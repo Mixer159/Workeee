@@ -3,7 +3,7 @@
 import { useRef } from "react";
 import { useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-import { MessageCircleIcon } from "lucide-react";
+import { EyeOffIcon, MessageCircleIcon } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import type { BoardTask, TaskUnread } from "@/lib/tasks";
 import { userInitials } from "@/lib/user";
@@ -87,6 +87,17 @@ export function TaskCard({
       <p className="min-w-0 flex-1 text-sm leading-snug break-words text-card-foreground">
         {task.title}
       </p>
+      {/* Only the people who can see the task see this: a reminder that it
+          is not for everybody, without saying who — that is the detail's. */}
+      {task.restricted ? (
+        <span
+          title="Skryto před částí týmu"
+          aria-label="Skryto před částí týmu"
+          className="mt-0.5 shrink-0 text-muted-foreground"
+        >
+          <EyeOffIcon aria-hidden className="size-3.5" />
+        </span>
+      ) : null}
       {/* One indicator per card: the comment count says the most, so it wins;
           the dot only stands in for a task never opened at all. */}
       {unread && unread.unreadComments > 0 ? (

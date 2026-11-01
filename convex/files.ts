@@ -187,7 +187,12 @@ export const remove = mutation({
     if (!file) {
       throw new Error("Tento soubor už neexistuje.");
     }
-    const { access } = await requireTaskAccess(ctx, userId, file.taskId);
+    const { access } = await requireTaskAccess(
+      ctx,
+      userId,
+      file.taskId,
+      "Tento soubor už neexistuje.",
+    );
     if (file.uploadedBy !== userId && !canManageProject(access)) {
       throw new Error("Soubor může smazat jen ten, kdo ho nahrál, nebo správce projektu.");
     }

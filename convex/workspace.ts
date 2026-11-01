@@ -5,10 +5,18 @@ import { listVisibleProjects } from "./lib/access";
 import { getAuthUserId } from "./lib/auth";
 import { commentBodyPreview } from "./lib/notifications";
 import { svgDataUrl } from "./lib/svg";
+import { isTaskHiddenFrom } from "./lib/taskVisibility";
 
 /** A useful first page without letting one live query grow with the database. */
 const DEFAULT_LIMIT = 40;
 const MAX_LIMIT = 100;
+
+/**
+ * How many tasks hidden from the caller one project may skip past while
+ * filling its page. Past this the page simply ends early — bounded beats
+ * complete for somebody hidden from hundreds of recent tasks in a row.
+ */
+const MAX_HIDDEN_SKIPPED = 500;
 
 /**
  * The central workspace inbox: recent tasks from every project the caller may
@@ -18,6 +26,9 @@ const MAX_LIMIT = 100;
  * `limit + 1` rows. Merging those bounded pages is enough to find the global
  * first page: a task below that rank inside its own project cannot enter the
  * global first `limit` either.
+ *
+ * Tasks hidden from the caller are skipped while the page is read, not after,
+ * so they cannot push the caller's own visible work off the first page.
  */
 export const listTasks = query({
   args: {
@@ -38,13 +49,7 @@ export const listTasks = query({
     const [pages, iconUrls, organizationNames] = await Promise.all([
       Promise.all(
         projects.map((project) =>
-          ctx.db
-            .query("tasks")
-            .withIndex("by_project_updated_at", (q) =>
-              q.eq("projectId", project._id),
-            )
-            .order("desc")
-            .take(limit + 1),
+          recentVisibleTasks(ctx, userId, project._id, limit + 1),
         ),
       ),
       loadProjectIconUrls(ctx, projects),
@@ -118,6 +123,7 @@ export const listTasks = query({
           assignee: task.assigneeId
             ? (people.get(task.assigneeId) ?? null)
             : null,
+          restricted: (task.hiddenFrom?.length ?? 0) > 0,
           latestComment: latestComment
             ? {
                 authorName:
@@ -133,6 +139,38 @@ export const listTasks = query({
     };
   },
 });
+
+/**
+ * The `count` most recently touched tasks of one project that `userId` may
+ * see. Streams the index newest first and stops as soon as the page is full,
+ * so a project with nothing hidden costs exactly what `take(count)` did.
+ */
+async function recentVisibleTasks(
+  ctx: QueryCtx,
+  userId: Id<"users">,
+  projectId: Id<"projects">,
+  count: number,
+): Promise<Doc<"tasks">[]> {
+  const page: Doc<"tasks">[] = [];
+  let skipped = 0;
+  for await (const task of ctx.db
+    .query("tasks")
+    .withIndex("by_project_updated_at", (q) => q.eq("projectId", projectId))
+    .order("desc")) {
+    if (isTaskHiddenFrom(task, userId)) {
+      skipped += 1;
+      if (skipped >= MAX_HIDDEN_SKIPPED) {
+        break;
+      }
+      continue;
+    }
+    page.push(task);
+    if (page.length >= count) {
+      break;
+    }
+  }
+  return page;
+}
 
 /** Every non-archived project the user may open, across all memberships. */
 async function listWorkspaceProjects(

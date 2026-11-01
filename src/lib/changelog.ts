@@ -22,6 +22,18 @@ export type ChangelogEntry = {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    date: "2026-11-01",
+    title: "Skryté úkoly",
+    tags: ["Úkoly"],
+    items: [
+      "Detail úkolu má nové pole Viditelnost. Úkol v něm skryjete před vybranými lidmi, všichni ostatní ho vidí jako dřív.",
+      "Pro skryté lidi úkol neexistuje: nenajdou ho na nástěnce, v pracovním režimu, v počtech nepřečtených ani v upozorněních, nepřijde jim o něm e-mail a nevidí ho ani jejich boti.",
+      "Skrýt jde i úkol, který teprve zakládáte, ikonou oka vedle názvu nebo v pracovním režimu. Na nástěnce skrytých lidí se tak neobjeví ani na okamžik.",
+      "Viditelnost mění autor úkolu a správci projektu. Před sebou, autorem ani řešitelem úkol skrýt nejde a skrytého člověka nejde přiřadit ani zmínit v komentáři.",
+      "Kdo skrytý úkol vidí, pozná ho podle přeškrtnutého oka na kartě.",
+    ],
+  },
+  {
     date: "2026-10-22",
     title: "Soubory se stahují pod svým jménem",
     tags: ["Soubory"],

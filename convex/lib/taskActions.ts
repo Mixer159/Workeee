@@ -1,11 +1,28 @@
 import type { Doc, Id } from "../_generated/dataModel";
 import type { MutationCtx } from "../_generated/server";
-import { getProjectAccess, requireProjectAccess } from "./access";
+import {
+  canManageProject,
+  getProjectAccess,
+  requireProjectAccess,
+} from "./access";
 import { logActivity } from "./activity";
-import { notifyTaskAssigned, notifyTaskCreated } from "./notifications";
+import { deleteUserTaskNotificationItems } from "./notificationItems";
+import {
+  deleteTaskNotificationsFor,
+  notifyTaskAssigned,
+  notifyTaskCreated,
+} from "./notifications";
 import { appendOrder, byOrder, orderBetween, renumber } from "./ordering";
 import { touchActive } from "./presence";
+import { listProjectMemberIds } from "./projectMembers";
+import { deleteUserTaskSeen } from "./taskSeen";
 import { requireTaskAccess } from "./tasks";
+import {
+  checkInitialHiddenFrom,
+  effectiveHiddenIds,
+  isTaskHiddenFromUser,
+  MAX_HIDDEN_PER_TASK,
+} from "./taskVisibility";
 import { normalizeTitle } from "./validation";
 
 /**
@@ -24,6 +41,12 @@ export async function createTask(
     projectId: Id<"projects">;
     statusId: Id<"taskStatuses">;
     title: string;
+    /**
+     * Hidden from these people from the first moment. Passing it here rather
+     * than hiding right after creating is the point: in between, the title
+     * would already be on their screen and a feed row in their bell.
+     */
+    hiddenFrom?: Id<"users">[];
   },
 ): Promise<Id<"tasks">> {
   const { project } = await requireProjectAccess(ctx, actorId, args.projectId);
@@ -34,6 +57,12 @@ export async function createTask(
     args.statusId,
     args.projectId,
   );
+  const hiddenFrom = await checkInitialHiddenFrom(ctx, {
+    projectId: args.projectId,
+    organizationId: project.organizationId,
+    authorId: actorId,
+    requested: args.hiddenFrom,
+  });
 
   const siblings = await tasksInStatus(ctx, status._id);
   const taskId = await ctx.db.insert("tasks", {
@@ -44,6 +73,7 @@ export async function createTask(
     order: appendOrder(siblings),
     createdBy: actorId,
     updatedAt: Date.now(),
+    hiddenFrom,
   });
   await logActivity(ctx, {
     organizationId: project.organizationId,
@@ -54,7 +84,8 @@ export async function createTask(
   });
 
   // Queued, never sent from here: eight tasks typed in a row have to arrive
-  // as one e-mail. See `./notifications.ts`.
+  // as one e-mail. See `./notifications.ts`. Nobody it is hidden from gets
+  // the feed row.
   const task = await ctx.db.get(taskId);
   if (task) {
     await notifyTaskCreated(ctx, task, actorId);
@@ -77,8 +108,9 @@ export async function renameTask(
 }
 
 /**
- * Assign or unassign. The assignee must be able to open the project — a task
- * parked on someone who cannot see it is invisible work.
+ * Assign or unassign. The assignee must be able to open the project and must
+ * not be somebody the task is hidden from — a task parked on someone who
+ * cannot see it is invisible work, and the assignment e-mail would name it.
  */
 export async function assignTask(
   ctx: MutationCtx,
@@ -97,6 +129,9 @@ export async function assignTask(
     if (!assigneeAccess) {
       throw new Error("Tento člověk nemá přístup k projektu.");
     }
+    if (await isTaskHiddenFromUser(ctx, task, args.assigneeId)) {
+      throw new Error("Před tímto člověkem je úkol skrytý.");
+    }
   }
   await ctx.db.patch(task._id, {
     assigneeId: args.assigneeId,
@@ -108,6 +143,121 @@ export async function assignTask(
   if (args.assigneeId && args.assigneeId !== task.assigneeId) {
     await notifyTaskAssigned(ctx, task, actorId, args.assigneeId);
   }
+}
+
+/**
+ * Hide the task from one person, or show it to them again.
+ *
+ * One person per call, never "here is the whole list": two managers editing at
+ * once would otherwise have the later write silently un-hide whoever the
+ * earlier one just hid. Each call is idempotent.
+ *
+ * Only the author and project managers decide — the same people who may
+ * delete the task, because hiding it from somebody deletes it for them.
+ * Three people can never be hidden, each because the task would lose
+ * somebody it cannot work without: the caller (they would lock themselves
+ * out mid-click), the author, and the řešitel. A bot counts with its owner.
+ *
+ * Hiding also clears what is already on its way to them: the queued e-mail
+ * rows, the feed rows and their read state of the task.
+ */
+export async function setTaskHiddenFrom(
+  ctx: MutationCtx,
+  actorId: Id<"users">,
+  args: { taskId: Id<"tasks">; userId: Id<"users">; hidden: boolean },
+): Promise<void> {
+  const { task, access } = await requireTaskAccess(ctx, actorId, args.taskId);
+  if (task.createdBy !== actorId && !canManageProject(access)) {
+    throw new Error(
+      "Viditelnost úkolu mění jen jeho autor nebo správce projektu.",
+    );
+  }
+  await touchActive(ctx, actorId);
+
+  const current = task.hiddenFrom ?? [];
+  const listed = current.includes(args.userId);
+  if (listed === args.hidden) {
+    return;
+  }
+
+  if (!args.hidden) {
+    const next = current.filter((userId) => userId !== args.userId);
+    await ctx.db.patch(task._id, {
+      hiddenFrom: next.length > 0 ? next : undefined,
+    });
+    await logVisibility(ctx, task, actorId, args.userId, false);
+    return;
+  }
+
+  if (args.userId === actorId) {
+    throw new Error("Sami před sebou úkol skrýt nemůžete.");
+  }
+  if (args.userId === task.createdBy) {
+    throw new Error("Před autorem úkolu ho skrýt nejde.");
+  }
+  if (args.userId === task.assigneeId) {
+    throw new Error(
+      "Před řešitelem úkol skrýt nejde. Nejdřív ho přiřaďte někomu jinému.",
+    );
+  }
+  if (current.length >= MAX_HIDDEN_PER_TASK) {
+    throw new Error(
+      `Úkol jde skrýt nejvýš před ${MAX_HIDDEN_PER_TASK} lidmi.`,
+    );
+  }
+  const members = await listProjectMemberIds(
+    ctx,
+    task.projectId,
+    task.organizationId,
+  );
+  if (!members.has(args.userId)) {
+    throw new Error("Tento člověk nemá přístup k projektu.");
+  }
+
+  const next = [...current, args.userId];
+  const before = await effectiveHiddenIds(ctx, current);
+  const after = await effectiveHiddenIds(ctx, next);
+  // The bot case: hiding a person hides their bots, and one of those may be
+  // the author, the řešitel or — never through the UI, but still — the caller.
+  if (after.has(actorId)) {
+    throw new Error("Sami před sebou úkol skrýt nemůžete.");
+  }
+  if (after.has(task.createdBy)) {
+    throw new Error("Autorem úkolu je bot tohoto člověka. Před ním úkol skrýt nejde.");
+  }
+  if (task.assigneeId && after.has(task.assigneeId)) {
+    throw new Error(
+      "Řešitelem úkolu je bot tohoto člověka. Nejdřív úkol přiřaďte někomu jinému.",
+    );
+  }
+
+  await ctx.db.patch(task._id, { hiddenFrom: next });
+
+  const newlyHidden = new Set(
+    [...after].filter((userId) => !before.has(userId)),
+  );
+  await deleteTaskNotificationsFor(ctx, task._id, newlyHidden);
+  for (const userId of newlyHidden) {
+    await deleteUserTaskNotificationItems(ctx, userId, task._id);
+    await deleteUserTaskSeen(ctx, userId, task._id);
+  }
+  await logVisibility(ctx, task, actorId, args.userId, true);
+}
+
+async function logVisibility(
+  ctx: MutationCtx,
+  task: Doc<"tasks">,
+  actorId: Id<"users">,
+  userId: Id<"users">,
+  hidden: boolean,
+): Promise<void> {
+  await logActivity(ctx, {
+    organizationId: task.organizationId,
+    actorId,
+    type: "task_visibility_changed",
+    targetId: task._id,
+    meta: { userId, hidden, projectId: task.projectId },
+  });
 }
 
 /**
@@ -137,8 +287,8 @@ export async function moveTask(
   );
 
   const order = await placeTask(ctx, task, status._id, {
-    previousTaskId: args.previousTaskId,
-    nextTaskId: args.nextTaskId,
+    previousTaskId: await visibleNeighbour(ctx, actorId, args.previousTaskId),
+    nextTaskId: await visibleNeighbour(ctx, actorId, args.nextTaskId),
   });
   await ctx.db.patch(task._id, {
     statusId: status._id,
@@ -156,6 +306,27 @@ export async function moveTask(
       meta: { from: from?.name ?? null, to: status.name },
     });
   }
+}
+
+/**
+ * A neighbour the actor may not see is treated as one that was not sent.
+ * Otherwise dropping a card "after" a remembered hidden id would land it mid
+ * column exactly when the hidden task is in that column, and repeating it per
+ * status would follow the hidden task across the board.
+ */
+async function visibleNeighbour(
+  ctx: MutationCtx,
+  actorId: Id<"users">,
+  taskId: Id<"tasks"> | undefined,
+): Promise<Id<"tasks"> | undefined> {
+  if (!taskId) {
+    return undefined;
+  }
+  const neighbour = await ctx.db.get(taskId);
+  if (!neighbour || (await isTaskHiddenFromUser(ctx, neighbour, actorId))) {
+    return undefined;
+  }
+  return taskId;
 }
 
 /**

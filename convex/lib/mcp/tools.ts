@@ -75,13 +75,13 @@ export const MCP_TOOLS: readonly ToolDefinition[] = [
   {
     name: "list_tasks",
     description:
-      "The whole board of a project: its statuses in column order, and every task with its status and assignee, ordered as on the board.",
+      "The whole board of a project: its statuses in column order, and every task with its status and assignee, ordered as on the board. hidden: true marks a task hidden from some members (see get_task).",
     inputSchema: schema({ projectId: id("project") }, ["projectId"]),
   },
   {
     name: "get_task",
     description:
-      "One task in detail: title, status, assignee, author, timestamps and the description as plain text. Set includeComments to also get the discussion.",
+      "One task in detail: title, status, assignee, author, timestamps and the description as plain text. Set includeComments to also get the discussion. hiddenFrom lists the people the task is hidden from: they cannot see it, cannot be assigned or mentioned, and must not be told about it.",
     inputSchema: schema(
       {
         taskId: id("task"),

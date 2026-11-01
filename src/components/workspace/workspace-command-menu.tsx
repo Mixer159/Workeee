@@ -13,12 +13,15 @@ import {
 import { useMutation, useQuery } from "convex/react";
 import { toast } from "sonner";
 import { api } from "@convex/_generated/api";
+import type { Id } from "@convex/_generated/dataModel";
 import {
   WorkspaceCommandMenuDialog,
   type WorkspacePaletteStep,
   type WorkspaceProject,
 } from "@/components/workspace/workspace-command-menu-dialog";
 import { useWorkspace } from "@/components/workspace/workspace-provider";
+import { useCurrentUser } from "@/hooks/use-current-user";
+import { hideOptions, toggleHidden } from "@/lib/task-visibility";
 
 type WorkspaceCommandMenuContextValue = {
   openTaskCreator: () => void;
@@ -47,11 +50,25 @@ export function WorkspaceCommandMenuProvider({
   const [selectedProject, setSelectedProject] =
     useState<WorkspaceProject | null>(null);
   const [pending, setPending] = useState(false);
+  const [hiddenFrom, setHiddenFrom] = useState<Id<"users">[]>([]);
+  const viewer = useCurrentUser();
 
   const statuses = useQuery(
     api.taskStatuses.list,
     open && selectedProject ? { projectId: selectedProject._id } : "skip",
   );
+  const members = useQuery(
+    api.projects.assignableMembers,
+    open && selectedProject ? { projectId: selectedProject._id } : "skip",
+  );
+  const visibility = {
+    options: hideOptions(members ?? [], hiddenFrom, {
+      viewerId: viewer?._id,
+      authorId: viewer?._id,
+    }),
+    onToggle: (userId: Id<"users">, hidden: boolean) =>
+      setHiddenFrom((current) => toggleHidden(current, userId, hidden)),
+  };
 
   const openCommands = useCallback(() => {
     setStep("commands");
@@ -59,6 +76,7 @@ export function WorkspaceCommandMenuProvider({
     setTitle("");
     setSelectedIndex(0);
     setSelectedProject(null);
+    setHiddenFrom([]);
     setOpen(true);
   }, []);
 
@@ -68,6 +86,7 @@ export function WorkspaceCommandMenuProvider({
     setTitle("");
     setSelectedIndex(0);
     setSelectedProject(null);
+    setHiddenFrom([]);
     setOpen(true);
   }, []);
 
@@ -134,6 +153,7 @@ export function WorkspaceCommandMenuProvider({
       setStep("projects");
       setTitle("");
       setSelectedProject(null);
+      setHiddenFrom([]);
       return;
     }
     if (step === "projects") {
@@ -144,6 +164,8 @@ export function WorkspaceCommandMenuProvider({
 
   const chooseProject = useCallback((project: WorkspaceProject) => {
     setSelectedProject(project);
+    // Who a task is hidden from is a choice about one project's people.
+    setHiddenFrom([]);
     setTitle("");
     setStep("title");
     setSelectedIndex(0);
@@ -163,6 +185,7 @@ export function WorkspaceCommandMenuProvider({
         projectId: selectedProject._id,
         statusId: status._id,
         title: cleanTitle,
+        hiddenFrom: hiddenFrom.length > 0 ? hiddenFrom : undefined,
       });
       closeMenu();
       openTask(taskId);
@@ -174,7 +197,16 @@ export function WorkspaceCommandMenuProvider({
     } finally {
       setPending(false);
     }
-  }, [closeMenu, createTask, openTask, pending, selectedProject, statuses, title]);
+  }, [
+    closeMenu,
+    createTask,
+    hiddenFrom,
+    openTask,
+    pending,
+    selectedProject,
+    statuses,
+    title,
+  ]);
 
   const selectActiveOption = useCallback(() => {
     if (activeIndex < 0) {
@@ -263,6 +295,7 @@ export function WorkspaceCommandMenuProvider({
         projects={projects}
         selectedProject={selectedProject}
         statusesLoading={statuses === undefined}
+        visibility={visibility}
         showCreateAction={showCreateAction}
         activeIndex={activeIndex}
         onOpenChange={setOpen}

@@ -133,6 +133,7 @@ export const activityTypes = v.union(
   v.literal("project_restored"),
   v.literal("task_created"),
   v.literal("task_status_changed"),
+  v.literal("task_visibility_changed"),
   v.literal("task_deleted"),
 );
 
@@ -282,6 +283,17 @@ export default defineSchema({
     createdBy: v.id("users"),
     assigneeId: v.optional(v.id("users")),
     updatedAt: v.number(),
+    /**
+     * The people this task is hidden from. **Absent means everybody who can
+     * open the project sees it** — the default, and every task written before
+     * the field existed. For anyone listed here the task does not exist: no
+     * read returns it, no mutation accepts it, no notification names it. A bot
+     * whose owner is listed is hidden with them (bot ∩ owner).
+     *
+     * Ids stay after a person leaves the project, on purpose: if they come
+     * back, the task is still hidden from them. See `convex/lib/taskVisibility.ts`.
+     */
+    hiddenFrom: v.optional(v.array(v.id("users"))),
   })
     .index("by_project", ["projectId"])
     // The workspace merges one recent page per visible project. Keeping the

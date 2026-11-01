@@ -6,6 +6,7 @@ import { deleteFile, listTaskFiles } from "./files";
 import { deleteTaskNotificationItems } from "./notificationItems";
 import { deleteTaskNotifications } from "./notifications";
 import { deleteTaskSeenRows } from "./taskSeen";
+import { isTaskHiddenFrom } from "./taskVisibility";
 
 type Ctx = QueryCtx | MutationCtx;
 
@@ -13,9 +14,10 @@ export type TaskAccess = { task: Doc<"tasks">; access: ProjectAccess };
 
 /**
  * A task plus the caller's access to its project, or `null` when the task does
- * not exist or its project is invisible to them. Everything hanging off a task —
- * the description, its files, its comments — authorizes through this one call,
- * so the project access is resolved exactly once per request.
+ * not exist, is hidden from them, or its project is invisible to them.
+ * Everything hanging off a task — the description, its files, its comments —
+ * authorizes through this one call, so the project access is resolved exactly
+ * once per request.
  */
 export async function getTaskAccess(
   ctx: Ctx,
@@ -23,7 +25,7 @@ export async function getTaskAccess(
   taskId: Id<"tasks">,
 ): Promise<TaskAccess | null> {
   const task = await ctx.db.get(taskId);
-  if (!task) {
+  if (!task || isTaskHiddenFrom(task, userId)) {
     return null;
   }
   const access = await getProjectAccess(ctx, userId, task.projectId);
@@ -33,15 +35,24 @@ export async function getTaskAccess(
   return { task, access };
 }
 
-/** The throwing variant, for mutations. */
+/**
+ * The throwing variant, for mutations. A task hidden from the caller gets the
+ * same sentence as a deleted one, so probing ids cannot tell the two apart.
+ *
+ * A mutation reached through a comment or a file id passes that row's own
+ * sentence as `missing`: deleting a task deletes its comments and files, so
+ * for a deleted task the caller would hear "Tento komentář už neexistuje." —
+ * and a hidden one has to answer the same.
+ */
 export async function requireTaskAccess(
   ctx: Ctx,
   userId: Id<"users">,
   taskId: Id<"tasks">,
+  missing = "Tento úkol už neexistuje.",
 ): Promise<TaskAccess> {
   const task = await ctx.db.get(taskId);
-  if (!task) {
-    throw new Error("Tento úkol už neexistuje.");
+  if (!task || isTaskHiddenFrom(task, userId)) {
+    throw new Error(missing);
   }
   const access = await requireProjectAccess(ctx, userId, task.projectId);
   return { task, access };

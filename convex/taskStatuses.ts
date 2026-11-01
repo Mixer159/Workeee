@@ -6,6 +6,7 @@ import { getAuthUserId } from "./lib/auth";
 import { ORDER_STEP, appendOrder, byOrder, renumber } from "./lib/ordering";
 import { touchActive } from "./lib/presence";
 import { listProjectStatuses } from "./lib/taskStatuses";
+import { isTaskHiddenFrom } from "./lib/taskVisibility";
 import { normalizeName } from "./lib/validation";
 import { taskStatusColors } from "./schema";
 
@@ -192,7 +193,12 @@ export const remove = mutation({
     }
 
     await ctx.db.delete(status._id);
-    return { movedTasks: moving.length };
+    // Hidden tasks move with their column, but they are not counted to
+    // somebody they are hidden from — the number would give them away.
+    return {
+      movedTasks: moving.filter((task) => !isTaskHiddenFrom(task, userId))
+        .length,
+    };
   },
 });
 
